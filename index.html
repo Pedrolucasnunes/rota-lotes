@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rota Condomínio — Painel</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; }
+  input, select { width: 100%; padding: 8px 9px; border: 1px solid #ccc; border-radius: 6px; font: inherit; font-size: 14px; background: #fff; }
+  label { display: block; font-size: 12px; color: #555; margin: 0 0 4px; }
+  button { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+  button:hover { background: #f0f0f0; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: #0f6e56; color: #fff; border-color: #0f6e56; }
+  button.primary:hover { background: #0c5a46; }
+  button.danger { color: #a32d2d; }
+  button.active { background: #e1f5ee; border-color: #0f6e56; color: #0f6e56; }
+  .row { display: flex; gap: 6px; }
+  .row > * { flex: 1; }
+  .hint { font-size: 12px; color: #666; margin-top: 6px; line-height: 1.4; }
+  .screen { display: none; height: 100%; }
+
+  #login { align-items: center; justify-content: center; background: #f6f6f4; }
+  .card { background: #fff; border: 1px solid #e3e3e3; border-radius: 12px; padding: 24px; width: min(360px, 92vw); }
+  .card h1 { font-size: 20px; margin: 0 0 4px; }
+  .card .f { margin-top: 12px; }
+
+  #app { flex-direction: column; }
+  #topbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; }
+  #topbar strong { font-size: 15px; margin-right: 6px; }
+  #condoSel { width: auto; min-width: 200px; }
+  .tabs { display: flex; gap: 6px; }
+  .spacer { flex: 1; }
+  #views { flex: 1; min-height: 0; position: relative; }
+  .view { position: absolute; inset: 0; display: none; }
+
+  #vMapa { display: flex; }
+  #side { width: 320px; display: flex; flex-direction: column; border-right: 1px solid #ddd; background: #fafafa; }
+  #map { flex: 1; }
+  .sec { padding: 12px 14px; border-bottom: 1px solid #e5e5e5; }
+  #list { flex: 1; overflow-y: auto; padding: 6px 8px; }
+  .item { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .item:hover { background: #eee; }
+  .item small { color: #777; font-size: 11.5px; display: block; }
+  .count { font-size: 12px; color: #666; padding: 8px 14px 0; }
+  .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .pwrap { max-width: 980px; margin: 0 auto; padding: 18px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .pcol { flex: 1 1 340px; }
+  #vPortaria, #vTotem { overflow-y: auto; }
+  #pSearch { font-size: 18px; padding: 12px; }
+  #pList { margin-top: 10px; max-height: 65vh; overflow-y: auto; }
+  #pList .item { font-size: 16px; padding: 12px; border: 1px solid #eee; margin-bottom: 6px; }
+  #pList .item.sel { background: #e1f5ee; border-color: #0f6e56; }
+  .bigcard { border: 1px solid #ddd; border-radius: 12px; padding: 22px; text-align: center; }
+  #pDest { font-size: 24px; font-weight: 700; margin: 4px 0 2px; }
+  #pCode { font-size: 64px; font-weight: 800; letter-spacing: 10px; margin: 14px 0 4px; color: #0f6e56; font-variant-numeric: tabular-nums; }
+  #pTimer { font-size: 14px; color: #666; }
+  .big { font-size: 16px; padding: 12px 16px; }
+  #qrDirect, #qrTotem { display: inline-block; margin: 14px 0 8px; padding: 10px; background: #fff; }
+
+  .totem { max-width: 520px; margin: 24px auto; text-align: center; border: 2px solid #0f6e56; border-radius: 16px; padding: 28px; }
+  .totem h2 { font-size: 28px; margin: 0 0 6px; }
+  .totem p { font-size: 17px; margin: 6px 0; }
+
+  #modalBg { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 2000; }
+  #modal { background: #fff; border-radius: 10px; padding: 18px; width: min(360px, 92vw); }
+  #modal h2 { font-size: 16px; margin: 0 0 12px; }
+  #modal .f { margin-bottom: 10px; }
+  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #222; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 13px; display: none; z-index: 3000; max-width: 90vw; }
+  .pin-label { background: #fff; border: 1px solid #0f6e56; color: #0f6e56; font-weight: 600; font-size: 11px; padding: 1px 5px; border-radius: 4px; white-space: nowrap; box-shadow: none; }
+  .pin-label.portaria { border-color: #d85a30; color: #993c1d; }
+  .leaflet-tooltip.pin-label::before { display: none; }
+  .popup a { display: inline-block; margin: 4px 6px 0 0; }
+  .err { color: #a32d2d; font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+  @media (max-width: 760px) {
+    #vMapa { flex-direction: column-reverse; }
+    #side { width: 100%; height: 45%; border-right: 0; border-top: 1px solid #ddd; }
+  }
+  @media print {
+    #topbar, .noprint { display: none !important; }
+    .totem { border-width: 3px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="screen">
+  <form class="card" id="loginForm">
+    <h1>Rota Condomínio</h1>
+    <div class="hint">Painel da equipe e da portaria</div>
+    <div class="f"><label for="email">E-mail</label><input id="email" type="email" autocomplete="username" required></div>
+    <div class="f"><label for="senha">Senha</label><input id="senha" type="password" autocomplete="current-password" required></div>
+    <div class="f"><button class="primary" style="width:100%" type="submit">Entrar</button></div>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<!-- CONFIG FALTANDO -->
+<div id="noconfig" class="screen" style="align-items:center;justify-content:center">
+  <div class="card"><h1>Falta configurar</h1><p class="hint">Abra o arquivo <b>config.js</b> e cole a URL e a chave do seu projeto Supabase.</p></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="screen">
+  <div id="topbar">
+    <strong>Rota Condomínio</strong>
+    <select id="condoSel"></select>
+    <button id="btnNewCondo">+ Condomínio</button>
+    <div class="tabs">
+      <button data-view="vMapa" class="active">Mapear</button>
+      <button data-view="vPortaria">Portaria</button>
+      <button data-view="vTotem">QR do totem</button>
+    </div>
+    <div class="spacer"></div>
+    <button id="btnLogout">Sair</button>
+  </div>
+
+  <div id="views">
+    <!-- MAPEAR -->
+    <div id="vMapa" class="view">
+      <aside id="side">
+        <div class="sec">
+          <label for="q">Buscar endereço ou bairro</label>
+          <div class="row"><input id="q" placeholder="Ex.: Nova Parnamirim, RN" style="flex:3"><button id="btnSearch">Buscar</button></div>
+          <div class="row" style="margin-top:6px"><button id="btnLocate">Minha localização</button><button id="btnLayer">Ver mapa de ruas</button></div>
+        </div>
+        <div class="sec">
+          <div class="row"><button id="btnModeLote" class="active">Cadastrar lote</button><button id="btnModePortaria">Marcar portaria</button></div>
+          <div class="hint" id="modeHint">Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.</div>
+        </div>
+        <div class="count" id="count"></div>
+        <div id="list"></div>
+        <div class="sec">
+          <div class="tools">
+            <button id="btnCsv">Exportar CSV</button>
+            <button id="btnImport">Importar JSON (versão antiga)</button>
+          </div>
+          <input type="file" id="file" accept=".json,application/json" style="display:none">
+        </div>
+      </aside>
+      <div id="map"></div>
+    </div>
+
+    <!-- PORTARIA -->
+    <div id="vPortaria" class="view">
+      <div class="pwrap">
+        <div class="pcol">
+          <label for="pSearch">Buscar casa (quadra, lote ou observação)</label>
+          <input id="pSearch" placeholder="Ex.: B 12" autocomplete="off">
+          <div id="pList"></div>
+        </div>
+        <div class="pcol">
+          <div class="bigcard">
+            <div id="pEmpty" style="color:#777;padding:60px 10px">Selecione a casa de destino ao lado.</div>
+            <div id="pSel" style="display:none">
+              <div style="font-size:13px;color:#666">Destino</div>
+              <div id="pDest"></div>
+              <div id="pObs" style="color:#666;font-size:14px"></div>
+              <div id="pCodeBox" style="display:none">
+                <div id="pCode"></div>
+                <div id="pTimer"></div>
+                <div style="font-size:15px;margin-top:10px">Informe este código ao entregador.<br>Ele escaneia o QR do totem e digita o código.</div>
+              </div>
+              <div style="margin-top:16px"><button id="btnGen" class="primary big">Gerar código</button></div>
+              <div style="margin-top:14px"><a href="#" id="toggleDirect" style="font-size:13px">Ou mostrar QR direto da rota (sem código)</a></div>
+              <div id="directBox" style="display:none">
+                <div id="qrDirect"></div>
+                <div class="row" style="max-width:300px;margin:0 auto">
+                  <button id="qGmaps" class="active">Google Maps</button><button id="qWaze">Waze</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QR DO TOTEM -->
+    <div id="vTotem" class="view">
+      <div class="totem">
+        <h2 id="tNome">Entregador?</h2>
+        <p>Escaneie o QR Code abaixo<br>e digite o código que o porteiro informar.</p>
+        <div id="qrTotem"></div>
+        <p style="font-size:14px;color:#555">Funciona com Google Maps e Waze</p>
+      </div>
+      <div class="noprint" style="text-align:center;margin-bottom:30px">
+        <div class="hint" id="tLink" style="word-break:break-all;max-width:520px;margin:0 auto 10px"></div>
+        <button id="btnPrint" class="primary big">Imprimir placa</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LOTE -->
+<div id="modalBg">
+  <div id="modal">
+    <h2 id="mTitle">Novo lote</h2>
+    <div class="row f">
+      <div><label for="mQuadra">Quadra / rua</label><input id="mQuadra" placeholder="Ex.: B"></div>
+      <div><label for="mLote">Lote / casa</label><input id="mLote" placeholder="Ex.: 12"></div>
+    </div>
+    <div class="f"><label for="mObs">Observação (opcional)</label><input id="mObs" placeholder="Ex.: portão azul"></div>
+    <div class="hint" id="mCoords"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="mCancel">Cancelar</button>
+      <button id="mDelete" class="danger" style="display:none">Excluir</button>
+      <button id="mSave" class="primary">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONDOMÍNIO -->
+<div id="condoBg" style="position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:2000">
+  <div class="card">
+    <h1 style="font-size:16px">Novo condomínio</h1>
+    <div class="f"><label for="cNome">Nome</label><input id="cNome" placeholder="Ex.: Residencial Exemplo"></div>
+    <div class="row f"><button id="cCancel">Cancelar</button><button id="cSave" class="primary">Criar</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(async function () {
+  function $(id) { return document.getElementById(id); }
+  function show(id) { ['login', 'noconfig', 'app'].forEach(function (s) { $(s).style.display = s === id ? 'flex' : 'none'; }); }
+  function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, 2800); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function r6(n) { return Math.round(n * 1e6) / 1e6; }
+  function nome(l) { return 'Quadra ' + l.quadra + ', Lote ' + l.lote; }
+  function gmaps(lat, lng) { return 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng; }
+  function waze(lat, lng) { return 'https://waze.com/ul?ll=' + lat + ',' + lng + '&navigate=yes'; }
+  function norm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function sortLotes(a, b) {
+    return String(a.quadra).localeCompare(String(b.quadra), 'pt', { numeric: true }) ||
+           String(a.lote).localeCompare(String(b.lote), 'pt', { numeric: true });
+  }
+  function qr(el, text, size) {
+    el.innerHTML = '';
+    if (window.QRCode) new QRCode(el, { text: text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+    else el.textContent = 'Gerador de QR indisponível';
+  }
+
+  var cfg = window.APP_CONFIG || {};
+  if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.indexOf('SEU-PROJETO') >= 0 || !cfg.SUPABASE_ANON_KEY || cfg.SUPABASE_ANON_KEY.indexOf('COLE_') === 0) { show('noconfig'); return; }
+  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+  var condos = [], condo = null, lotes = [];
+  var map = null, markers = {}, portariaMarker = null, mode = 'lote', justDragged = 0;
+  var editing = null, pendingLatLng = null, lastQuadra = '';
+
+  // ---------- LOGIN ----------
+  $('loginForm').onsubmit = async function (e) {
+    e.preventDefault(); $('loginErr').textContent = '';
+    var r = await db.auth.signInWithPassword({ email: $('email').value.trim(), password: $('senha').value });
+    if (r.error) { $('loginErr').textContent = 'E-mail ou senha inválidos.'; return; }
+    startApp();
+  };
+  $('btnLogout').onclick = async function () { await db.auth.signOut(); show('login'); };
+
+
+  // ---------- APP ----------
+  async function startApp() {
+    show('app');
+    if (!map) initMap();
+    setView('vMapa');
+    await loadCondos();
+  }
+
+  function setView(id) {
+    document.querySelectorAll('.view').forEach(function (v) { v.style.display = 'none'; });
+    $(id).style.display = id === 'vMapa' ? 'flex' : 'block';
+    document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-view') === id); });
+    if (id === 'vMapa' && map) setTimeout(function () { map.invalidateSize(); }, 50);
+    if (id === 'vPortaria') { renderPortaria(); setTimeout(function () { $('pSearch').focus(); }, 30); }
+    if (id === 'vTotem') renderTotem();
+  }
+  document.querySelectorAll('.tabs button').forEach(function (b) { b.onclick = function () { setView(b.getAttribute('data-view')); }; });
+
+  async function loadCondos() {
+    var r = await db.from('condominios').select('*').order('nome');
+    if (r.error) { toast('Erro ao carregar condomínios: ' + r.error.message); return; }
+    condos = r.data;
+    var sel = $('condoSel'); sel.innerHTML = '';
+    condos.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.nome; sel.appendChild(o); });
+    if (!condos.length) { condo = null; lotes = []; redrawAll(); openCondoModal(); return; }
+    var saved = null; try { saved = localStorage.getItem('rc-condo'); } catch (e) {}
+    var pick = condos.find(function (c) { return c.id === saved; }) || condos[0];
+    sel.value = pick.id;
+    await selectCondo(pick.id, true);
+  }
+  $('condoSel').onchange = function () { selectCondo(this.value, true); };
+
+  async function selectCondo(id, fit) {
+    condo = condos.find(function (c) { return c.id === id; });
+    try { localStorage.setItem('rc-condo', id); } catch (e) {}
+    var r = await db.from('lotes').select('*').eq('condominio_id', id);
+    if (r.error) { toast('Erro ao carregar lotes: ' + r.error.message); return; }
+    lotes = r.data;
+    redrawAll();
+    if (fit) fitAll();
+    pSelId = null; clearCode(); renderPortaria(); renderTotem();
+  }
+
+  function openCondoModal() { $('cNome').value = ''; $('condoBg').style.display = 'flex'; setTimeout(function () { $('cNome').focus(); }, 30); }
+  $('btnNewCondo').onclick = openCondoModal;
+  $('cCancel').onclick = function () { $('condoBg').style.display = 'none'; };
+  $('cSave').onclick = async function () {
+    var n = $('cNome').value.trim(); if (!n) { toast('Digite o nome'); return; }
+    var slug = norm(n).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '-' + Math.random().toString(36).slice(2, 6);
+    var r = await db.from('condominios').insert({ nome: n, slug: slug }).select().single();
+    if (r.error) { toast('Erro: ' + r.error.message); return; }
+    $('condoBg').style.display = 'none';
+    await loadCondos(); $('condoSel').value = r.data.id; await selectCondo(r.data.id, false);
+    toast('Condomínio criado. Agora busque o endereço e marque a portaria.');
+  };
+
+  // ---------- MAPA ----------
+  function initMap() {
+    map = L.map('map', { maxZoom: 21 }).setView([-5.795, -35.209], 12);
+    var sat = L.layerGroup([
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, attribution: 'Imagens &copy; Esri, Maxar, Earthstar Geographics' }),
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21 })
+    ]);
+    var ruas = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxNativeZoom: 20, maxZoom: 21, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' });
+    sat.addTo(map); var usingSat = true;
+    $('btnLayer').onclick = function () {
+      if (usingSat) { map.removeLayer(sat); ruas.addTo(map); this.textContent = 'Ver satélite'; }
+      else { map.removeLayer(ruas); sat.addTo(map); this.textContent = 'Ver mapa de ruas'; }
+      usingSat = !usingSat;
+    };
+    map.on('click', onMapClick);
+    map.on('popupopen', function (e) {
+      var a = e.popup.getElement().querySelector('[data-edit]');
+      if (a) a.onclick = function (ev) { ev.preventDefault(); var l = lotes.find(function (x) { return x.id === a.getAttribute('data-edit'); }); map.closePopup(); if (l) openModal(l); };
+    });
+  }
+
+  function setMode(m) {
+    mode = m;
+    $('btnModeLote').classList.toggle('active', m === 'lote');
+    $('btnModePortaria').classList.toggle('active', m === 'portaria');
+    $('modeHint').textContent = m === 'lote' ? 'Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.' : 'Clique no ponto exato da portaria.';
+  }
+  $('btnModeLote').onclick = function () { setMode('lote'); };
+  $('btnModePortaria').onclick = function () { setMode('portaria'); };
+
+  async function onMapClick(e) {
+    if (Date.now() - justDragged < 400) return;
+    if (!condo) { toast('Crie um condomínio primeiro'); openCondoModal(); return; }
+    if (mode === 'portaria') {
+      var lat = r6(e.latlng.lat), lng = r6(e.latlng.lng);
+      var r = await db.from('condominios').update({ portaria_lat: lat, portaria_lng: lng }).eq('id', condo.id);
+      if (r.error) { toast('Erro: ' + r.error.message); return; }
+      condo.portaria_lat = lat; condo.portaria_lng = lng;
+      drawPortaria(); renderCount(); setMode('lote'); toast('Portaria marcada');
+    } else openModal(null, e.latlng);
+  }
+
+  function drawPortaria() {
+    if (portariaMarker) { map.removeLayer(portariaMarker); portariaMarker = null; }
+    if (!condo || condo.portaria_lat == null) return;
+    portariaMarker = L.circleMarker([condo.portaria_lat, condo.portaria_lng], { radius: 9, color: '#993c1d', fillColor: '#d85a30', fillOpacity: 0.9, weight: 2, bubblingMouseEvents: false })
+      .addTo(map).bindTooltip('Portaria', { permanent: true, direction: 'top', offset: [0, -8], className: 'pin-label portaria' });
+  }
+
+  function popupHtml(l) {
+    return '<div class="popup"><b>' + esc(nome(l)) + '</b>' + (l.obs ? '<br>' + esc(l.obs) : '') +
+      '<br><small>' + l.lat + ', ' + l.lng + '</small><br>' +
+      '<a href="' + gmaps(l.lat, l.lng) + '" target="_blank" rel="noopener">Google Maps</a>' +
+      '<a href="' + waze(l.lat, l.lng) + '" target="_blank" rel="noopener">Waze</a><br>' +
+      '<a href="#" data-edit="' + l.id + '">Editar</a></div>';
+  }
+
+  function drawLote(l) {
+    if (markers[l.id]) map.removeLayer(markers[l.id]);
+    var m = L.circleMarker([l.lat, l.lng], { radius: 6, color: '#085041', fillColor: '#1d9e75', fillOpacity: 0.9, weight: 2, bubblingMouseEvents: false });
+    m.addTo(map).bindTooltip(l.quadra + '-' + l.lote, { permanent: true, direction: 'top', offset: [0, -6], className: 'pin-label' }).bindPopup(popupHtml(l));
+    m.on('mousedown', function (e) {
+      if (e.originalEvent && e.originalEvent.button === 2) return;
+      var moved = false; map.dragging.disable();
+      function move(ev) { moved = true; m.setLatLng(ev.latlng); }
+      async function up() {
+        map.off('mousemove', move); map.off('mouseup', up); m.off('mouseup', up); map.dragging.enable();
+        if (!moved) return;
+        justDragged = Date.now();
+        var ll = m.getLatLng(), lat = r6(ll.lat), lng = r6(ll.lng);
+        var r = await db.from('lotes').update({ lat: lat, lng: lng }).eq('id', l.id);
+        if (r.error) { toast('Erro ao mover: ' + r.error.message); m.setLatLng([l.lat, l.lng]); return; }
+        l.lat = lat; l.lng = lng; m.setPopupContent(popupHtml(l)); renderList(); toast('Posição ajustada');
+      }
+      map.on('mousemove', move); map.on('mouseup', up); m.on('mouseup', up);
+    });
+    markers[l.id] = m;
+  }
+
+  function renderCount() {
+    var n = lotes.length;
+    $('count').textContent = !condo ? 'Nenhum condomínio selecionado' :
+      n + (n === 1 ? ' lote' : ' lotes') + ' · ' + (condo.portaria_lat != null ? 'portaria marcada' : 'portaria não marcada');
+  }
+  function renderList() {
+    var list = $('list'); list.innerHTML = '';
+    lotes.slice().sort(sortLotes).forEach(function (l) {
+      var d = document.createElement('div'); d.className = 'item';
+      d.innerHTML = '<div>' + esc(nome(l)) + '<small>' + esc(l.obs || '') + '</small></div><span>›</span>';
+      d.onclick = function () { map.setView([l.lat, l.lng], Math.max(map.getZoom(), 19)); markers[l.id].openPopup(); };
+      list.appendChild(d);
+    });
+    renderCount();
+  }
+  function redrawAll() {
+    Object.keys(markers).forEach(function (k) { map.removeLayer(markers[k]); }); markers = {};
+    lotes.forEach(drawLote); drawPortaria(); renderList();
+  }
+  function fitAll() {
+    var pts = lotes.map(function (l) { return [l.lat, l.lng]; });
+    if (condo && condo.portaria_lat != null) pts.push([condo.portaria_lat, condo.portaria_lng]);
+    if (pts.length === 1) map.setView(pts[0], 18); else if (pts.length) map.fitBounds(pts, { padding: [40, 40] });
+  }
+
+  function openModal(l, latlng) {
+    editing = l; pendingLatLng = latlng || null;
+    $('mTitle').textContent = l ? 'Editar lote' : 'Novo lote';
+    $('mQuadra').value = l ? l.quadra : lastQuadra;
+    $('mLote').value = l ? l.lote : '';
+    $('mObs').value = l ? (l.obs || '') : '';
+    var ll = l ? l : latlng;
+    $('mCoords').textContent = 'Coordenada: ' + r6(ll.lat) + ', ' + r6(ll.lng);
+    $('mDelete').style.display = l ? 'block' : 'none';
+    $('modalBg').style.display = 'flex';
+    setTimeout(function () { (l || !$('mQuadra').value ? $('mQuadra') : $('mLote')).focus(); }, 30);
+  }
+  function closeModal() { $('modalBg').style.display = 'none'; editing = null; pendingLatLng = null; }
+  $('mCancel').onclick = closeModal;
+  $('modalBg').onclick = function (e) { if (e.target === this) closeModal(); };
+  document.addEventListener('keydown', function (e) {
+    if ($('modalBg').style.display === 'flex') { if (e.key === 'Enter') $('mSave').click(); if (e.key === 'Escape') closeModal(); }
+    if ($('condoBg').style.display === 'flex') { if (e.key === 'Enter') $('cSave').click(); if (e.key === 'Escape') $('condoBg').style.display = 'none'; }
+  });
+
+  $('mSave').onclick = async function () {
+    var q = $('mQuadra').value.trim(), lo = $('mLote').value.trim(), obs = $('mObs').value.trim();
+    if (!q || !lo) { toast('Preencha quadra e lote'); return; }
+    this.disabled = true;
+    var r;
+    if (editing) r = await db.from('lotes').update({ quadra: q, lote: lo, obs: obs || null }).eq('id', editing.id).select().single();
+    else r = await db.from('lotes').insert({ condominio_id: condo.id, quadra: q, lote: lo, obs: obs || null, lat: r6(pendingLatLng.lat), lng: r6(pendingLatLng.lng) }).select().single();
+    this.disabled = false;
+    if (r.error) { toast(r.error.code === '23505' ? 'Já existe Quadra ' + q + ', Lote ' + lo : 'Erro: ' + r.error.message); return; }
+    if (editing) { var i = lotes.findIndex(function (x) { return x.id === r.data.id; }); lotes[i] = r.data; } else lotes.push(r.data);
+    lastQuadra = q; drawLote(r.data); renderList(); closeModal(); toast('Salvo: ' + nome(r.data));
+  };
+  $('mDelete').onclick = async function () {
+    var id = editing.id;
+    var r = await db.from('lotes').delete().eq('id', id);
+    if (r.error) { toast('Erro: ' + r.error.message); return; }
+    lotes = lotes.filter(function (x) { return x.id !== id; });
+    if (markers[id]) { map.removeLayer(markers[id]); delete markers[id]; }
+    renderList(); closeModal(); toast('Lote excluído');
+  };
+
+  function search() {
+    var q = $('q').value.trim(); if (!q) return; toast('Buscando...');
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (res) { if (!res.length) { toast('Nada encontrado. Tente bairro + cidade.'); return; } map.setView([+res[0].lat, +res[0].lon], 17); })
+      .catch(function () { toast('Busca indisponível. Navegue arrastando o mapa.'); });
+  }
+  $('btnSearch').onclick = search;
+  $('q').onkeydown = function (e) { if (e.key === 'Enter') search(); };
+  $('btnLocate').onclick = function () {
+    if (!navigator.geolocation) { toast('Localização indisponível'); return; }
+    navigator.geolocation.getCurrentPosition(function (p) { map.setView([p.coords.latitude, p.coords.longitude], 18); toast('Precisão: ~' + Math.round(p.coords.accuracy) + ' m'); },
+      function () { toast('Não consegui sua localização'); }, { enableHighAccuracy: true, timeout: 10000 });
+  };
+
+  $('btnCsv').onclick = function () {
+    if (!condo) return;
+    var rows = [['condominio', 'tipo', 'quadra', 'lote', 'latitude', 'longitude', 'observacao']];
+    if (condo.portaria_lat != null) rows.push([condo.nome, 'portaria', '', '', condo.portaria_lat, condo.portaria_lng, '']);
+    lotes.slice().sort(sortLotes).forEach(function (l) { rows.push([condo.nome, 'lote', l.quadra, l.lote, l.lat, l.lng, l.obs || '']); });
+    var csv = rows.map(function (r) { return r.map(function (v) { v = String(v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';'); }).join('\n');
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = condo.slug + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  $('btnImport').onclick = function () { if (!condo) { toast('Crie um condomínio primeiro'); return; } $('file').click(); };
+  $('file').onchange = function () {
+    var f = this.files[0]; if (!f) return; this.value = '';
+    var rd = new FileReader();
+    rd.onload = async function () {
+      try {
+        var s = JSON.parse(rd.result); if (!s || !Array.isArray(s.lotes)) throw 0;
+        var rows = s.lotes.map(function (l) { return { condominio_id: condo.id, quadra: String(l.quadra), lote: String(l.lote), obs: l.obs || null, lat: l.lat, lng: l.lng }; });
+        var r = await db.from('lotes').upsert(rows, { onConflict: 'condominio_id,quadra,lote' });
+        if (r.error) throw r.error;
+        if (s.portaria && condo.portaria_lat == null) {
+          await db.from('condominios').update({ portaria_lat: s.portaria.lat, portaria_lng: s.portaria.lng }).eq('id', condo.id);
+          condo.portaria_lat = s.portaria.lat; condo.portaria_lng = s.portaria.lng;
+        }
+        await selectCondo(condo.id, true); toast('Importados ' + rows.length + ' lotes');
+      } catch (e) { toast('Não consegui importar: ' + (e && e.message ? e.message : 'arquivo inválido')); }
+    };
+    rd.readAsText(f);
+  };
+
+  // ---------- PORTARIA ----------
+  var pSelId = null, codeTimer = null, qTarget = 'gmaps';
+  function renderPortaria() {
+    var terms = norm($('pSearch').value).split(/[\s,;-]+/).filter(Boolean);
+    var list = $('pList'); list.innerHTML = '';
+    if (!lotes.length) { list.innerHTML = '<div class="hint">Nenhum lote cadastrado neste condomínio.</div>'; showSel(); return; }
+    var res = lotes.filter(function (l) {
+      var hay = norm('quadra ' + l.quadra + ' lote ' + l.lote + ' ' + l.quadra + ' ' + l.lote + ' ' + (l.obs || ''));
+      return terms.every(function (t) { return hay.indexOf(t) >= 0; });
+    }).sort(sortLotes);
+    if (!res.length) list.innerHTML = '<div class="hint">Nenhuma casa encontrada.</div>';
+    res.slice(0, 60).forEach(function (l) {
+      var d = document.createElement('div'); d.className = 'item' + (l.id === pSelId ? ' sel' : '');
+      d.innerHTML = '<div>' + esc(nome(l)) + '<small>' + esc(l.obs || '') + '</small></div><span>›</span>';
+      d.onclick = function () { if (pSelId !== l.id) { pSelId = l.id; clearCode(); } renderPortaria(); };
+      list.appendChild(d);
+    });
+    showSel();
+  }
+  $('pSearch').oninput = renderPortaria;
+
+  function showSel() {
+    var l = lotes.find(function (x) { return x.id === pSelId; });
+    $('pEmpty').style.display = l ? 'none' : 'block'; $('pSel').style.display = l ? 'block' : 'none';
+    if (!l) return;
+    $('pDest').textContent = nome(l); $('pObs').textContent = l.obs || '';
+    if ($('directBox').style.display === 'block') drawDirect(l);
+  }
+  function clearCode() {
+    clearInterval(codeTimer); $('pCodeBox').style.display = 'none'; $('btnGen').textContent = 'Gerar código';
+  }
+  $('btnGen').onclick = async function () {
+    if (!pSelId) return;
+    this.disabled = true;
+    var r = await db.rpc('criar_entrega', { p_lote_id: pSelId });
+    this.disabled = false;
+    if (r.error) { toast('Erro: ' + r.error.message); return; }
+    var row = Array.isArray(r.data) ? r.data[0] : r.data;
+    $('pCode').textContent = row.codigo_gerado; $('pCodeBox').style.display = 'block'; this.textContent = 'Gerar novo código';
+    var until = new Date(row.valido_ate).getTime();
+    clearInterval(codeTimer);
+    function tick() {
+      var s = Math.max(0, Math.round((until - Date.now()) / 1000));
+      $('pTimer').textContent = s > 0 ? 'Válido por ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : 'Código expirado';
+      if (!s) clearInterval(codeTimer);
+    }
+    tick(); codeTimer = setInterval(tick, 1000);
+  };
+  $('toggleDirect').onclick = function (e) {
+    e.preventDefault(); var b = $('directBox'); var open = b.style.display !== 'block';
+    b.style.display = open ? 'block' : 'none'; this.textContent = open ? 'Esconder QR direto' : 'Ou mostrar QR direto da rota (sem código)';
+    if (open) drawDirect(lotes.find(function (x) { return x.id === pSelId; }));
+  };
+  function drawDirect(l) {
+    if (!l) return;
+    qr($('qrDirect'), qTarget === 'gmaps' ? gmaps(l.lat, l.lng) : waze(l.lat, l.lng), 200);
+    $('qGmaps').classList.toggle('active', qTarget === 'gmaps'); $('qWaze').classList.toggle('active', qTarget === 'waze');
+  }
+  $('qGmaps').onclick = function () { qTarget = 'gmaps'; showSel(); };
+  $('qWaze').onclick = function () { qTarget = 'waze'; showSel(); };
+
+  // ---------- TOTEM ----------
+  function entregadorUrl() {
+    var base = location.href.split('#')[0].split('?')[0].replace(/[^\/]*$/, '');
+    return base + 'entregador.html?c=' + encodeURIComponent(condo.slug);
+  }
+  function renderTotem() {
+    if (!condo) { $('qrTotem').innerHTML = ''; $('tLink').textContent = 'Crie um condomínio primeiro.'; return; }
+    $('tNome').textContent = 'Entregador? ' + condo.nome;
+    var u = entregadorUrl();
+    qr($('qrTotem'), u, 280);
+    $('tLink').innerHTML = 'Link da placa: <a href="' + u + '" target="_blank" rel="noopener">' + esc(u) + '</a>';
+  }
+  $('btnPrint').onclick = function () { window.print(); };
+
+  var sess = await db.auth.getSession();
+  if (sess.data && sess.data.session) startApp(); else show('login');
+})();
+</script>
+</body>
+</html>

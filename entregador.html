@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rota até a casa</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; background: #f6f6f4; }
+  .wrap { max-width: 440px; margin: 0 auto; padding: 22px 18px 40px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { margin: 4px 0; color: #444; }
+  .card { background: #fff; border: 1px solid #e3e3e3; border-radius: 14px; padding: 20px; margin-top: 16px; }
+  #code { width: 100%; font-size: 40px; text-align: center; letter-spacing: 14px; padding: 12px; border: 2px solid #ccc; border-radius: 10px; font-variant-numeric: tabular-nums; }
+  #code:focus { outline: none; border-color: #0f6e56; }
+  button, a.btn { display: block; width: 100%; padding: 15px; border-radius: 10px; font: inherit; font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; border: 0; }
+  .primary { background: #0f6e56; color: #fff; margin-top: 14px; }
+  .primary:disabled { opacity: .5; }
+  .gmaps { background: #1a73e8; color: #fff; margin-top: 10px; }
+  .waze { background: #33ccff; color: #062a3a; margin-top: 10px; }
+  .ghost { background: transparent; color: #0f6e56; margin-top: 10px; font-weight: 500; }
+  .err { color: #a32d2d; text-align: center; margin-top: 10px; min-height: 20px; font-size: 15px; }
+  #dest { font-size: 26px; font-weight: 800; margin: 2px 0; }
+  #obs { color: #555; }
+  #map { height: 230px; border-radius: 10px; margin-top: 14px; }
+  .small { font-size: 13px; color: #777; text-align: center; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="step1">
+    <h1>Bem-vindo, entregador</h1>
+    <p id="sub">Digite o código de 4 números que o porteiro informou.</p>
+    <div class="card">
+      <form id="f">
+        <input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="0000">
+        <button class="primary" id="go" type="submit">Ver rota até a casa</button>
+      </form>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <div id="step2" style="display:none">
+    <p id="cname" style="font-size:14px"></p>
+    <div id="dest"></div>
+    <div id="obs"></div>
+    <div id="map"></div>
+    <a class="btn gmaps" id="aG" target="_blank" rel="noopener">Abrir no Google Maps</a>
+    <a class="btn waze" id="aW" target="_blank" rel="noopener">Abrir no Waze</a>
+    <button class="ghost" id="again">Digitar outro código</button>
+  </div>
+
+  <div class="small">Rota Condomínio</div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  var slug = new URLSearchParams(location.search).get('c');
+  var cfg = window.APP_CONFIG || {};
+  if (!slug) { $('sub').textContent = 'Link incompleto. Escaneie novamente o QR Code da portaria.'; $('f').style.display = 'none'; return; }
+  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  var map = null, pin = null;
+
+  $('code').addEventListener('input', function () {
+    this.value = this.value.replace(/\D/g, '').slice(0, 4); $('err').textContent = '';
+    if (this.value.length === 4) $('f').requestSubmit ? $('f').requestSubmit() : $('go').click();
+  });
+
+  $('f').onsubmit = async function (e) {
+    e.preventDefault();
+    var c = $('code').value;
+    if (c.length !== 4) { $('err').textContent = 'O código tem 4 números.'; return; }
+    $('go').disabled = true; $('go').textContent = 'Buscando...';
+    var r = await db.rpc('buscar_entrega', { p_slug: slug, p_codigo: c });
+    $('go').disabled = false; $('go').textContent = 'Ver rota até a casa';
+    if (r.error) { $('err').textContent = 'Erro de conexão. Tente de novo.'; return; }
+    var d = Array.isArray(r.data) ? r.data[0] : r.data;
+    if (!d) { $('err').textContent = 'Código inválido ou expirado. Confira com o porteiro.'; return; }
+    show(d);
+  };
+
+  function show(d) {
+    $('step1').style.display = 'none'; $('step2').style.display = 'block';
+    $('cname').textContent = d.condominio;
+    $('dest').textContent = 'Quadra ' + d.quadra + ', Lote ' + d.lote;
+    $('obs').textContent = d.obs || '';
+    $('aG').href = 'https://www.google.com/maps/dir/?api=1&destination=' + d.lat + ',' + d.lng;
+    $('aW').href = 'https://waze.com/ul?ll=' + d.lat + ',' + d.lng + '&navigate=yes';
+    if (!map) {
+      map = L.map('map', { zoomControl: false, attributionControl: true });
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 20, attribution: '&copy; Esri' }).addTo(map);
+    }
+    map.setView([d.lat, d.lng], 18);
+    if (pin) map.removeLayer(pin);
+    pin = L.circleMarker([d.lat, d.lng], { radius: 10, color: '#fff', weight: 3, fillColor: '#d85a30', fillOpacity: 1 }).addTo(map);
+    setTimeout(function () { map.invalidateSize(); }, 50);
+  }
+
+  $('again').onclick = function () { $('step2').style.display = 'none'; $('step1').style.display = 'block'; $('code').value = ''; $('code').focus(); };
+  $('code').focus();
+})();
+</script>
+</body>
+</html>
