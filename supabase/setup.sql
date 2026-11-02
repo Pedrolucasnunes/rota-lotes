@@ -130,3 +130,69 @@ grant execute on function public.criar_entrega(uuid) to authenticated;
 
 revoke all on function public.buscar_entrega(text, text) from public;
 grant execute on function public.buscar_entrega(text, text) to anon, authenticated;
+
+-- 8) Proteção contra chute de códigos: cada aparelho (IP) pode errar 8 vezes em 15 min,
+--    e cada condomínio aceita no máximo 100 erros em 15 min (somando todos os aparelhos).
+create table if not exists public.tentativas_codigo (
+  id      bigint generated always as identity primary key,
+  ip      text not null,
+  slug    text,
+  acertou boolean not null,
+  em      timestamptz not null default now()
+);
+create index if not exists tentativas_ip_em_idx on public.tentativas_codigo (ip, em);
+create index if not exists tentativas_slug_em_idx on public.tentativas_codigo (slug, em);
+alter table public.tentativas_codigo enable row level security;
+revoke all on public.tentativas_codigo from anon, authenticated;
+
+drop function if exists public.buscar_entrega(text, text);
+create function public.buscar_entrega(p_slug text, p_codigo text)
+returns table (condominio text, quadra text, lote text, obs text,
+               lat double precision, lng double precision, valido_ate timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ip    text;
+  v_erros int;
+  v_erros_condo int;
+  v_achou boolean := false;
+begin
+  v_ip := coalesce(
+    split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1),
+    ''
+  );
+  if v_ip = '' then v_ip := 'desconhecido'; end if;
+
+  select count(*) into v_erros
+    from tentativas_codigo t
+   where t.ip = v_ip and not t.acertou and t.em > now() - interval '15 minutes';
+
+  select count(*) into v_erros_condo
+    from tentativas_codigo t
+   where t.slug = p_slug and not t.acertou and t.em > now() - interval '15 minutes';
+
+  if v_erros >= 8 or v_erros_condo >= 100 then
+    raise exception 'MUITAS_TENTATIVAS' using errcode = 'P0001';
+  end if;
+
+  return query
+  update entregas e
+     set aberto_em = coalesce(e.aberto_em, now())
+    from lotes l, condominios c
+   where e.lote_id = l.id
+     and e.condominio_id = c.id
+     and c.slug = p_slug
+     and e.codigo = p_codigo
+     and e.expira_em > now()
+  returning c.nome, l.quadra, l.lote, l.obs, l.lat, l.lng, e.expira_em;
+
+  v_achou := found;
+  insert into tentativas_codigo (ip, slug, acertou) values (v_ip, p_slug, v_achou);
+  delete from tentativas_codigo where em < now() - interval '1 day';
+end;
+$$;
+
+revoke all on function public.buscar_entrega(text, text) from public;
+grant execute on function public.buscar_entrega(text, text) to anon, authenticated;

@@ -11,7 +11,7 @@ Ideia de negócio (Natal/RN): software para condomínios horizontais que mostra 
 - HTML + JS puro. Leaflet (mapa), tiles Esri World Imagery (satélite) e CARTO Voyager (ruas — não usar tile.openstreetmap.org, bloqueia apps), qrcodejs, supabase-js v2 via CDN.
 - Supabase (projeto `rota-condominio`, ref `mxxtnatjpkazbjvciupr`, região sa-east-1, org Free "Rota Condomínio").
   - Tabelas: `condominios`, `lotes`, `entregas` — RLS: só `authenticated` lê/escreve.
-  - RPC `criar_entrega(p_lote_id)` (authenticated) e `buscar_entrega(p_slug, p_codigo)` (anon) — ambas SECURITY DEFINER de propósito.
+  - RPC `criar_entrega(p_lote_id)` (authenticated) e `buscar_entrega(p_slug, p_codigo)` (anon, com limite de tentativas) — ambas SECURITY DEFINER de propósito.
   - Script completo em `supabase/setup.sql`.
 - Hospedagem planejada: Vercel ligada a este repositório privado (GitHub Pages exige plano pago para repo privado).
 
@@ -22,6 +22,6 @@ Ideia de negócio (Natal/RN): software para condomínios horizontais que mostra 
 
 ## Limitações conhecidas / próximos passos
 - Todos os usuários logados veem todos os condomínios (falta multi-tenant por condomínio).
-- Código de 4 dígitos sem limite de tentativas (considerar 5–6 dígitos ou rate limit).
+- Código de 4 dígitos com limite de tentativas (`tentativas_codigo`: 8 erros/IP e 100 erros/condomínio a cada 15 min). O IP vem de x-forwarded-for e pode ser falsificado; o limite por condomínio cobre isso, mas permite bloqueio temporário por abuso. Avaliar códigos de 5–6 dígitos.
 - Tiles gratuitos servem para piloto; para produção avaliar MapTiler pago.
 - Usuário (José Hugo) não é desenvolvedor: explicar em português simples, passo a passo.

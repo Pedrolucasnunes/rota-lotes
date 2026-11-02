@@ -78,7 +78,12 @@
     $('go').disabled = true; $('go').textContent = 'Buscando...';
     var r = await db.rpc('buscar_entrega', { p_slug: slug, p_codigo: c });
     $('go').disabled = false; $('go').textContent = 'Ver rota até a casa';
-    if (r.error) { $('err').textContent = 'Erro de conexão. Tente de novo.'; return; }
+    if (r.error) {
+      $('err').textContent = /MUITAS_TENTATIVAS/.test(r.error.message || '')
+        ? 'Muitas tentativas erradas. Aguarde 15 minutos ou peça ajuda ao porteiro.'
+        : 'Erro de conexão. Tente de novo.';
+      return;
+    }
     var d = Array.isArray(r.data) ? r.data[0] : r.data;
     if (!d) { $('err').textContent = 'Código inválido ou expirado. Confira com o porteiro.'; return; }
     show(d);
