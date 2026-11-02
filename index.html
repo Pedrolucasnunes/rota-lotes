@@ -134,6 +134,8 @@
           <div class="hint" id="modeHint">Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.</div>
           <div id="ruasBox" style="display:none;margin-top:8px">
             <button id="btnOsm" style="width:100%">Importar ruas do OpenStreetMap</button>
+            <a href="#" id="btnOsmFile" style="display:block;font-size:12px;margin-top:6px">Plano B: importar arquivo .osm exportado do site</a>
+            <input type="file" id="osmFile" accept=".osm,.xml,application/xml,text/xml" style="display:none">
             <div class="row" style="margin-top:6px">
               <button id="btnRuaFim" class="primary" disabled>Concluir rua</button>
               <button id="btnRuaUndo" disabled>Desfazer ponto</button>
@@ -552,6 +554,38 @@
     }
     throw new Error('os servidores do OpenStreetMap não responderam agora. Tente de novo em alguns minutos' + (last && last.message ? ' (' + last.message + ')' : ''));
   }
+  // Plano B: arquivo exportado em openstreetmap.org > Exportar (formato .osm / XML)
+  $('btnOsmFile').onclick = function (e) { e.preventDefault(); if (!condo) { toast('Crie um condomínio primeiro'); return; } $('osmFile').click(); };
+  $('osmFile').onchange = function () {
+    var f = this.files[0]; if (!f) return; this.value = '';
+    var rd = new FileReader();
+    rd.onload = async function () {
+      try {
+        var xml = new DOMParser().parseFromString(rd.result, 'text/xml');
+        if (xml.getElementsByTagName('parsererror').length) throw new Error('arquivo inválido');
+        var nodes = {};
+        Array.prototype.forEach.call(xml.getElementsByTagName('node'), function (n) { nodes[n.getAttribute('id')] = [r6(+n.getAttribute('lat')), r6(+n.getAttribute('lon'))]; });
+        var ok = /^(residential|service|living_street|unclassified|tertiary|road)$/;
+        var have = {}; ruas.forEach(function (r) { if (r.osm_id) have[r.osm_id] = 1; });
+        var rows = [];
+        Array.prototype.forEach.call(xml.getElementsByTagName('way'), function (w) {
+          var hw = null;
+          Array.prototype.forEach.call(w.getElementsByTagName('tag'), function (t) { if (t.getAttribute('k') === 'highway') hw = t.getAttribute('v'); });
+          var id = +w.getAttribute('id');
+          if (!hw || !ok.test(hw) || have[id]) return;
+          var coords = [];
+          Array.prototype.forEach.call(w.getElementsByTagName('nd'), function (nd) { var p = nodes[nd.getAttribute('ref')]; if (p) coords.push(p); });
+          if (coords.length >= 2) rows.push({ condominio_id: condo.id, origem: 'osm', osm_id: id, coords: coords });
+        });
+        if (!rows.length) { toast('Nenhuma rua nova encontrada nesse arquivo.'); return; }
+        var r = await db.from('ruas').insert(rows).select('id, coords, origem, osm_id');
+        if (r.error) throw r.error;
+        ruas = ruas.concat(r.data); drawRuas();
+        toast(r.data.length + ' ruas importadas do arquivo.');
+      } catch (e) { toast('Não consegui ler o arquivo: ' + (e.message || e)); }
+    };
+    rd.readAsText(f);
+  };
   function clearTest() { if (testLayer) { map.removeLayer(testLayer); testLayer = null; } }
   function testRoute(l) {
     clearTest();
