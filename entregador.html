@@ -175,7 +175,19 @@
     }
     tick(); timerId = setInterval(tick, 1000);
 
-    startGps();
+    askGps();
+  }
+
+  // Só pede a localização depois de um toque do entregador: o navegador mostra o pedido "Permitir?"
+  // com mais chance de aceite, e no iPhone o pedido feito sem toque às vezes é recusado direto.
+  async function askGps() {
+    var state = 'prompt';
+    try { if (navigator.permissions) state = (await navigator.permissions.query({ name: 'geolocation' })).state; } catch (e) {}
+    if (state === 'granted') { startGps(); return; }
+    if (state === 'denied') { onGpsErr({ code: 1 }); return; }
+    $('gpsMsg').textContent = 'Para ver onde você está no caminho, toque abaixo e depois em "Permitir".';
+    $('gpsBtn').textContent = 'Ativar minha localização';
+    $('gpsBtn').style.display = 'block';
   }
 
   var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -193,9 +205,10 @@
     if (e && e.code === 1) {
       if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
       $('dist').textContent = '';
+      $('gpsBtn').textContent = 'Tentar de novo';
       $('gpsMsg').innerHTML = isIOS
-        ? 'Localização bloqueada. No iPhone: <b>Ajustes &gt; Privacidade &gt; Serviços de Localização</b> (ligado) &gt; <b>Sites do Safari</b> &gt; <b>Durante o Uso</b>. Depois toque abaixo.'
-        : 'Localização bloqueada. Toque no cadeado ao lado do endereço do site &gt; <b>Permissões</b> &gt; <b>Localização: Permitir</b>, e ative o GPS do celular. Depois toque abaixo.';
+        ? 'A localização está bloqueada para este site. Toque em <b>aA</b> (ou no ícone à esquerda do endereço) &gt; <b>Ajustes do Site</b> &gt; <b>Localização: Permitir</b>. Se não aparecer, vá em <b>Ajustes &gt; Privacidade &gt; Serviços de Localização &gt; Sites do Safari &gt; Durante o Uso</b>.'
+        : 'A localização está bloqueada para este site. Toque no cadeado ao lado do endereço do site &gt; <b>Permissões</b> &gt; <b>Localização: Permitir</b>, e ative o GPS do celular. Depois toque abaixo.';
       $('gpsBtn').style.display = 'block';
     } else {
       $('gpsMsg').textContent = 'Sinal de GPS fraco. Continuando a procurar...';
