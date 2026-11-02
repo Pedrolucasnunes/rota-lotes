@@ -1,7 +1,7 @@
-// Cole aqui os dados do seu projeto Supabase
-// (Supabase > Project Settings > API, ou o botão "Connect" no topo do projeto)
-// A chave "anon"/"publishable" é pública por natureza: a segurança vem das regras do banco.
+// Dados públicos do projeto Supabase "rota-condominio".
+// A chave publishable é pública por natureza: a segurança vem das regras (RLS) do banco.
+// NUNCA coloque aqui a chave secret / service_role.
 window.APP_CONFIG = {
-  SUPABASE_URL: 'https://SEU-PROJETO.supabase.co',
-  SUPABASE_ANON_KEY: 'COLE_A_CHAVE_ANON_OU_PUBLISHABLE_AQUI'
+  SUPABASE_URL: 'https://mxxtnatjpkazbjvciupr.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_aR6T1gcovOaN24pdO8Xw3A_iCIiTdGs'
 };
