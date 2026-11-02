@@ -509,7 +509,11 @@
     var pts = lotes.map(function (l) { return [l.lat, l.lng]; });
     if (condo.portaria_lat != null) pts.push([condo.portaria_lat, condo.portaria_lng]);
     var b;
-    if (pts.length) { b = L.latLngBounds(pts).pad(0.15); var pad = 0.0008; b = L.latLngBounds([b.getSouth() - pad, b.getWest() - pad], [b.getNorth() + pad, b.getEast() + pad]); }
+    if (pts.length) {
+      b = L.latLngBounds(pts).pad(0.15);
+      if (map.getZoom() >= 15) b.extend(map.getBounds());
+      var pad = 0.0008; b = L.latLngBounds([b.getSouth() - pad, b.getWest() - pad], [b.getNorth() + pad, b.getEast() + pad]);
+    }
     else { if (map.getZoom() < 15) { if (!auto) toast('Aproxime o mapa do condomínio antes de importar'); return; } b = map.getBounds(); }
     var q = '[out:json][timeout:25];way["highway"~"^(residential|service|living_street|unclassified|tertiary|road)$"](' +
       [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(function (v) { return v.toFixed(6); }).join(',') + ');out geom;';
