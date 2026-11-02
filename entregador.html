@@ -66,6 +66,7 @@
   <div id="navBottom">
     <div id="arrived">Você chegou ao destino</div>
     <div id="gpsMsg">Permita o acesso à localização para ver onde você está.</div>
+    <button class="primary" id="gpsBtn" style="display:none;margin:0 0 8px">Mostrar minha localização</button>
     <div class="row" id="portRow" style="display:none">
       <a class="btn port" id="aG" target="_blank" rel="noopener noreferrer">Até a portaria: Google Maps</a>
       <a class="btn port" id="aW" target="_blank" rel="noopener noreferrer">Até a portaria: Waze</a>
@@ -159,15 +160,34 @@
     }
     tick(); timerId = setInterval(tick, 1000);
 
-    if (navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(onPos, function () {
-        $('gpsMsg').textContent = 'Sem acesso à localização. Use o mapa para se orientar até o pino laranja.';
-        $('dist').textContent = '';
-      }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
-    } else {
+    startGps();
+  }
+
+  var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  function startGps() {
+    if (!navigator.geolocation) {
       $('gpsMsg').textContent = 'Este celular não informa a localização. Use o mapa para se orientar.';
+      return;
+    }
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    $('gpsBtn').style.display = 'none';
+    $('gpsMsg').textContent = 'Buscando sua localização...';
+    watchId = navigator.geolocation.watchPosition(onPos, onGpsErr, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  }
+  function onGpsErr(e) {
+    if (e && e.code === 1) {
+      if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      $('dist').textContent = '';
+      $('gpsMsg').innerHTML = isIOS
+        ? 'Localização bloqueada. No iPhone: <b>Ajustes &gt; Privacidade &gt; Serviços de Localização</b> (ligado) &gt; <b>Sites do Safari</b> &gt; <b>Durante o Uso</b>. Depois toque abaixo.'
+        : 'Localização bloqueada. Toque no cadeado ao lado do endereço do site &gt; <b>Permissões</b> &gt; <b>Localização: Permitir</b>, e ative o GPS do celular. Depois toque abaixo.';
+      $('gpsBtn').style.display = 'block';
+    } else {
+      $('gpsMsg').textContent = 'Sinal de GPS fraco. Continuando a procurar...';
+      $('gpsBtn').style.display = 'block';
     }
   }
+  $('gpsBtn').onclick = startGps;
 
   function onPos(p) {
     if (!dest) return;
@@ -183,6 +203,7 @@
     var m = distM(me, dest);
     $('dist').textContent = 'Faltam ' + fmt(m);
     $('gpsMsg').textContent = 'Siga em direção ao pino laranja. Precisão do GPS: ~' + Math.round(acc) + ' m';
+    $('gpsBtn').style.display = 'none';
     $('arrived').style.display = m < Math.max(15, acc) ? 'block' : 'none';
     if (!fitted && m < 3000) { map.fitBounds([me, dest], { padding: [50, 50], maxZoom: 19 }); fitted = true; }
   }
@@ -194,7 +215,7 @@
     if (meMarker) { map.removeLayer(meMarker); map.removeLayer(meCircle); map.removeLayer(line); meMarker = meCircle = line = null; }
     dest = null; fitted = false;
     $('nav').style.display = 'none'; $('start').style.display = 'block';
-    $('dest').textContent = ''; $('obs').textContent = ''; $('arrived').style.display = 'none'; $('portRow').style.display = 'none';
+    $('dest').textContent = ''; $('obs').textContent = ''; $('arrived').style.display = 'none'; $('portRow').style.display = 'none'; $('gpsBtn').style.display = 'none';
     $('err').textContent = msg || '';
     $('err').style.color = /concluída/.test(msg || '') ? '#0f6e56' : '#a32d2d';
   }
