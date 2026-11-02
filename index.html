@@ -383,6 +383,7 @@
       if (r.error) { toast('Erro: ' + r.error.message); return; }
       condo.portaria_lat = lat; condo.portaria_lng = lng;
       drawPortaria(); renderCount(); setMode('lote'); toast('Portaria marcada');
+      if (!ruas.length) setTimeout(function () { importOsm(true); }, 800);
     } else if (mode === 'ruas') addVertex([e.latlng.lat, e.latlng.lng]);
     else openModal(null, e.latlng);
   }
@@ -501,16 +502,19 @@
     if (r.error) { toast('Erro: ' + r.error.message); return; }
     ruas = ruas.filter(function (x) { return x.id !== id; }); drawRuas(); clearTest(); toast('Rua excluída');
   }
-  $('btnOsm').onclick = async function () {
+  $('btnOsm').onclick = function () { importOsm(false); };
+  async function importOsm(auto) {
     if (!condo) { toast('Crie um condomínio primeiro'); return; }
+    var btn = $('btnOsm');
     var pts = lotes.map(function (l) { return [l.lat, l.lng]; });
     if (condo.portaria_lat != null) pts.push([condo.portaria_lat, condo.portaria_lng]);
     var b;
     if (pts.length) { b = L.latLngBounds(pts).pad(0.15); var pad = 0.0008; b = L.latLngBounds([b.getSouth() - pad, b.getWest() - pad], [b.getNorth() + pad, b.getEast() + pad]); }
-    else { if (map.getZoom() < 15) { toast('Aproxime o mapa do condomínio antes de importar'); return; } b = map.getBounds(); }
+    else { if (map.getZoom() < 15) { if (!auto) toast('Aproxime o mapa do condomínio antes de importar'); return; } b = map.getBounds(); }
     var q = '[out:json][timeout:25];way["highway"~"^(residential|service|living_street|unclassified|tertiary|road)$"](' +
       [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(function (v) { return v.toFixed(6); }).join(',') + ');out geom;';
-    this.disabled = true; this.textContent = 'Buscando no OpenStreetMap...';
+    btn.disabled = true; btn.textContent = 'Buscando no OpenStreetMap...';
+    if (auto) toast('Buscando as ruas do condomínio no OpenStreetMap...');
     try {
       var resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
       if (!resp.ok) throw new Error('OpenStreetMap respondeu ' + resp.status);
@@ -518,14 +522,14 @@
       var have = {}; ruas.forEach(function (r) { if (r.osm_id) have[r.osm_id] = 1; });
       var rows = (js.elements || []).filter(function (w) { return w.type === 'way' && w.geometry && w.geometry.length >= 2 && !have[w.id]; })
         .map(function (w) { return { condominio_id: condo.id, origem: 'osm', osm_id: w.id, coords: w.geometry.map(function (g) { return [r6(g.lat), r6(g.lon)]; }) }; });
-      if (!rows.length) { toast((js.elements || []).length ? 'Nenhuma rua nova: já foram importadas.' : 'O OpenStreetMap não tem ruas nesta área. Desenhe-as à mão.'); return; }
+      if (!rows.length) { toast((js.elements || []).length ? 'Nenhuma rua nova: já foram importadas.' : 'O OpenStreetMap não tem as ruas deste condomínio. Desenhe-as na aba Ruas.'); return; }
       var r = await db.from('ruas').insert(rows).select('id, coords, origem, osm_id');
       if (r.error) throw r.error;
       ruas = ruas.concat(r.data); drawRuas();
       toast(r.data.length + ' ruas importadas. Confira no satélite: exclua as que não servem e desenhe as que faltam.');
     } catch (e) { toast('Não consegui importar: ' + (e.message || e)); }
-    finally { this.disabled = false; this.textContent = 'Importar ruas do OpenStreetMap'; }
-  };
+    finally { btn.disabled = false; btn.textContent = 'Importar ruas do OpenStreetMap'; }
+  }
   function clearTest() { if (testLayer) { map.removeLayer(testLayer); testLayer = null; } }
   function testRoute(l) {
     clearTest();
