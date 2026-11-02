@@ -148,7 +148,8 @@ revoke all on public.tentativas_codigo from anon, authenticated;
 drop function if exists public.buscar_entrega(text, text);
 create function public.buscar_entrega(p_slug text, p_codigo text)
 returns table (condominio text, quadra text, lote text, obs text,
-               lat double precision, lng double precision, valido_ate timestamptz)
+               lat double precision, lng double precision, valido_ate timestamptz,
+               portaria_lat double precision, portaria_lng double precision)
 language plpgsql
 security definer
 set search_path = public
@@ -186,7 +187,7 @@ begin
      and c.slug = p_slug
      and e.codigo = p_codigo
      and e.expira_em > now()
-  returning c.nome, l.quadra, l.lote, l.obs, l.lat, l.lng, e.expira_em;
+  returning c.nome, l.quadra, l.lote, l.obs, l.lat, l.lng, e.expira_em, c.portaria_lat, c.portaria_lng;
 
   v_achou := found;
   insert into tentativas_codigo (ip, slug, acertou) values (v_ip, p_slug, v_achou);

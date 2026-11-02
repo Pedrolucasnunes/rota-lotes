@@ -165,15 +165,13 @@
                 <div id="pCode"></div>
                 <div id="pTimer"></div>
                 <div style="font-size:15px;margin-top:10px">Informe este código ao entregador.<br>Ele escaneia o QR do totem e digita o código.</div>
-              </div>
-              <div style="margin-top:16px"><button id="btnGen" class="primary big">Gerar código</button></div>
-              <div style="margin-top:14px"><a href="#" id="toggleDirect" style="font-size:13px">Ou mostrar QR direto da rota (sem código)</a></div>
-              <div id="directBox" style="display:none">
-                <div id="qrDirect"></div>
-                <div class="row" style="max-width:300px;margin:0 auto">
-                  <button id="qGmaps" class="active">Google Maps</button><button id="qWaze">Waze</button>
+                <div style="margin-top:14px"><a href="#" id="toggleDirect" style="font-size:13px">Ou mostrar QR com o código já incluído</a></div>
+                <div id="directBox" style="display:none">
+                  <div id="qrDirect"></div>
+                  <div class="hint">O entregador aponta a câmera e o caminho abre direto, sem digitar.</div>
                 </div>
               </div>
+              <div style="margin-top:16px"><button id="btnGen" class="primary big">Gerar código</button></div>
             </div>
           </div>
         </div>
@@ -514,7 +512,7 @@
   };
 
   // ---------- PORTARIA ----------
-  var pSelId = null, codeTimer = null, qTarget = 'gmaps';
+  var pSelId = null, codeTimer = null, currentCode = null;
   function renderPortaria() {
     var terms = norm($('pSearch').value).split(/[\s,;-]+/).filter(Boolean);
     var list = $('pList'); list.innerHTML = '';
@@ -539,10 +537,9 @@
     $('pEmpty').style.display = l ? 'none' : 'block'; $('pSel').style.display = l ? 'block' : 'none';
     if (!l) return;
     $('pDest').textContent = nome(l); $('pObs').textContent = l.obs || '';
-    if ($('directBox').style.display === 'block') drawDirect(l);
   }
   function clearCode() {
-    clearInterval(codeTimer); $('pCodeBox').style.display = 'none'; $('btnGen').textContent = 'Gerar código';
+    clearInterval(codeTimer); currentCode = null; $('pCodeBox').style.display = 'none'; $('directBox').style.display = 'none'; $('toggleDirect').textContent = 'Ou mostrar QR com o código já incluído'; $('btnGen').textContent = 'Gerar código';
   }
   $('btnGen').onclick = async function () {
     if (!pSelId) return;
@@ -551,7 +548,7 @@
     this.disabled = false;
     if (r.error) { toast('Erro: ' + r.error.message); return; }
     var row = Array.isArray(r.data) ? r.data[0] : r.data;
-    $('pCode').textContent = row.codigo_gerado; $('pCodeBox').style.display = 'block'; this.textContent = 'Gerar novo código';
+    currentCode = row.codigo_gerado; $('pCode').textContent = row.codigo_gerado; if ($('directBox').style.display === 'block') drawDirect(); $('pCodeBox').style.display = 'block'; this.textContent = 'Gerar novo código';
     var until = new Date(row.valido_ate).getTime();
     clearInterval(codeTimer);
     function tick() {
@@ -563,16 +560,10 @@
   };
   $('toggleDirect').onclick = function (e) {
     e.preventDefault(); var b = $('directBox'); var open = b.style.display !== 'block';
-    b.style.display = open ? 'block' : 'none'; this.textContent = open ? 'Esconder QR direto' : 'Ou mostrar QR direto da rota (sem código)';
-    if (open) drawDirect(lotes.find(function (x) { return x.id === pSelId; }));
+    b.style.display = open ? 'block' : 'none'; this.textContent = open ? 'Esconder QR' : 'Ou mostrar QR com o código já incluído';
+    if (open) drawDirect();
   };
-  function drawDirect(l) {
-    if (!l) return;
-    qr($('qrDirect'), qTarget === 'gmaps' ? gmaps(l.lat, l.lng) : waze(l.lat, l.lng), 200);
-    $('qGmaps').classList.toggle('active', qTarget === 'gmaps'); $('qWaze').classList.toggle('active', qTarget === 'waze');
-  }
-  $('qGmaps').onclick = function () { qTarget = 'gmaps'; showSel(); };
-  $('qWaze').onclick = function () { qTarget = 'waze'; showSel(); };
+  function drawDirect() { if (currentCode) qr($('qrDirect'), entregadorUrl() + '&k=' + currentCode, 200); }
 
   // ---------- TOTEM ----------
   function entregadorUrl() {

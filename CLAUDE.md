@@ -5,7 +5,9 @@ Ideia de negócio (Natal/RN): software para condomínios horizontais que mostra 
 ## Fluxo
 1. Equipe mapeia o condomínio: clica em cada lote sobre o satélite e salva quadra/lote/coordenada.
 2. Porteiro escolhe a casa no painel e gera um código de 4 dígitos (vale 20 min).
-3. Entregador escaneia o QR fixo do totem (`entregador.html?c=<slug>`), digita o código e abre a rota no Google Maps ou Waze.
+3. Entregador escaneia o QR fixo do totem (`entregador.html?c=<slug>`), digita o código e vê o caminho DENTRO da página: mapa de satélite com GPS ao vivo, pino do destino e distância. Some quando o código expira.
+   - Privacidade: a coordenada da casa NUNCA é enviada ao Google Maps/Waze (ficaria no histórico do entregador). Esses apps só são usados para chegar à portaria.
+   - QR alternativo na portaria: `entregador.html?c=<slug>&k=<codigo>` (código já incluído; a página remove o `k` da URL).
 
 ## Stack (MVP, sem build)
 - HTML + JS puro. Leaflet (mapa), tiles Esri World Imagery (satélite) e CARTO Voyager (ruas — não usar tile.openstreetmap.org, bloqueia apps), qrcodejs, supabase-js v2 via CDN.

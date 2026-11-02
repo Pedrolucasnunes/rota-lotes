@@ -3,55 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>Rota até a casa</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; background: #f6f6f4; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; background: #f6f6f4; }
   .wrap { max-width: 440px; margin: 0 auto; padding: 22px 18px 40px; }
   h1 { font-size: 22px; margin: 0 0 6px; }
   p { margin: 4px 0; color: #444; }
   .card { background: #fff; border: 1px solid #e3e3e3; border-radius: 14px; padding: 20px; margin-top: 16px; }
   #code { width: 100%; font-size: 40px; text-align: center; letter-spacing: 14px; padding: 12px; border: 2px solid #ccc; border-radius: 10px; font-variant-numeric: tabular-nums; }
   #code:focus { outline: none; border-color: #0f6e56; }
-  button, a.btn { display: block; width: 100%; padding: 15px; border-radius: 10px; font: inherit; font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; border: 0; }
+  button, a.btn { display: block; width: 100%; padding: 14px; border-radius: 10px; font: inherit; font-size: 16px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; border: 0; }
   .primary { background: #0f6e56; color: #fff; margin-top: 14px; }
   .primary:disabled { opacity: .5; }
-  .gmaps { background: #1a73e8; color: #fff; margin-top: 10px; }
-  .waze { background: #33ccff; color: #062a3a; margin-top: 10px; }
-  .ghost { background: transparent; color: #0f6e56; margin-top: 10px; font-weight: 500; }
+  .ghost { background: transparent; color: #0f6e56; font-weight: 500; }
   .err { color: #a32d2d; text-align: center; margin-top: 10px; min-height: 20px; font-size: 15px; }
-  #dest { font-size: 26px; font-weight: 800; margin: 2px 0; }
-  #obs { color: #555; }
-  #map { height: 230px; border-radius: 10px; margin-top: 14px; }
   .small { font-size: 13px; color: #777; text-align: center; margin-top: 14px; }
+
+  #nav { display: none; flex-direction: column; height: 100%; }
+  #navTop { padding: 12px 14px 10px; background: #fff; border-bottom: 1px solid #e3e3e3; }
+  #dest { font-size: 22px; font-weight: 800; }
+  #obs { color: #555; font-size: 14px; }
+  #meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 14px; }
+  #dist { font-weight: 700; font-size: 18px; color: #0f6e56; }
+  #timer { color: #666; }
+  #map { flex: 1; min-height: 240px; }
+  #navBottom { padding: 10px 14px 14px; background: #fff; border-top: 1px solid #e3e3e3; }
+  #gpsMsg { font-size: 13px; color: #666; margin-bottom: 8px; text-align: center; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .port { background: #eef3f1; color: #0c5a46; font-size: 14px; padding: 11px; }
+  #arrived { display: none; background: #e1f5ee; color: #085041; border-radius: 10px; padding: 10px; text-align: center; font-weight: 700; margin-bottom: 8px; }
+  .me { width: 18px; height: 18px; border-radius: 50%; background: #1a73e8; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.2); }
+  .lbl { background: #fff; border: 1px solid #993c1d; color: #993c1d; font-weight: 700; font-size: 12px; padding: 2px 6px; border-radius: 4px; box-shadow: none; }
+  .lbl.p { border-color: #555; color: #333; font-weight: 600; }
+  .leaflet-tooltip.lbl::before { display: none; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div id="step1">
-    <h1>Bem-vindo, entregador</h1>
-    <p id="sub">Digite o código de 4 números que o porteiro informou.</p>
-    <div class="card">
-      <form id="f">
-        <input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="0000">
-        <button class="primary" id="go" type="submit">Ver rota até a casa</button>
-      </form>
-      <div class="err" id="err"></div>
-    </div>
+<div id="start" class="wrap">
+  <h1>Bem-vindo, entregador</h1>
+  <p id="sub">Digite o código de 4 números que o porteiro informou.</p>
+  <div class="card">
+    <form id="f">
+      <input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="0000">
+      <button class="primary" id="go" type="submit">Ver caminho até a casa</button>
+    </form>
+    <div class="err" id="err"></div>
   </div>
+  <div class="small">O caminho aparece aqui mesmo, só enquanto o código for válido.</div>
+</div>
 
-  <div id="step2" style="display:none">
-    <p id="cname" style="font-size:14px"></p>
+<div id="nav">
+  <div id="navTop">
     <div id="dest"></div>
     <div id="obs"></div>
-    <div id="map"></div>
-    <a class="btn gmaps" id="aG" target="_blank" rel="noopener">Abrir no Google Maps</a>
-    <a class="btn waze" id="aW" target="_blank" rel="noopener">Abrir no Waze</a>
-    <button class="ghost" id="again">Digitar outro código</button>
+    <div id="meta"><span id="dist">Localizando você...</span><span id="timer"></span></div>
   </div>
-
-  <div class="small">Rota Condomínio</div>
+  <div id="map"></div>
+  <div id="navBottom">
+    <div id="arrived">Você chegou ao destino</div>
+    <div id="gpsMsg">Permita o acesso à localização para ver onde você está.</div>
+    <div class="row" id="portRow" style="display:none">
+      <a class="btn port" id="aG" target="_blank" rel="noopener noreferrer">Até a portaria: Google Maps</a>
+      <a class="btn port" id="aW" target="_blank" rel="noopener noreferrer">Até a portaria: Waze</a>
+    </div>
+    <button class="ghost" id="done">Concluir entrega</button>
+  </div>
 </div>
 
 <script src="config.js"></script>
@@ -60,24 +80,31 @@
 <script>
 (function () {
   function $(id) { return document.getElementById(id); }
-  var slug = new URLSearchParams(location.search).get('c');
+  var params = new URLSearchParams(location.search);
+  var slug = params.get('c');
+  var preCode = (params.get('k') || '').replace(/\D/g, '').slice(0, 4);
+  if (preCode) history.replaceState(null, '', location.pathname + '?c=' + encodeURIComponent(slug || ''));
   var cfg = window.APP_CONFIG || {};
   if (!slug) { $('sub').textContent = 'Link incompleto. Escaneie novamente o QR Code da portaria.'; $('f').style.display = 'none'; return; }
-  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-  var map = null, pin = null;
+  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+
+  var map = null, destLayer = null, meMarker = null, meCircle = null, line = null;
+  var watchId = null, timerId = null, dest = null, fitted = false;
 
   $('code').addEventListener('input', function () {
     this.value = this.value.replace(/\D/g, '').slice(0, 4); $('err').textContent = '';
-    if (this.value.length === 4) $('f').requestSubmit ? $('f').requestSubmit() : $('go').click();
+    if (this.value.length === 4) submit();
   });
+  $('f').onsubmit = function (e) { e.preventDefault(); submit(); };
 
-  $('f').onsubmit = async function (e) {
-    e.preventDefault();
+  var busy = false;
+  async function submit() {
+    if (busy) return;
     var c = $('code').value;
     if (c.length !== 4) { $('err').textContent = 'O código tem 4 números.'; return; }
-    $('go').disabled = true; $('go').textContent = 'Buscando...';
+    busy = true; $('go').disabled = true; $('go').textContent = 'Buscando...';
     var r = await db.rpc('buscar_entrega', { p_slug: slug, p_codigo: c });
-    $('go').disabled = false; $('go').textContent = 'Ver rota até a casa';
+    busy = false; $('go').disabled = false; $('go').textContent = 'Ver caminho até a casa';
     if (r.error) {
       $('err').textContent = /MUITAS_TENTATIVAS/.test(r.error.message || '')
         ? 'Muitas tentativas erradas. Aguarde 15 minutos ou peça ajuda ao porteiro.'
@@ -86,28 +113,94 @@
     }
     var d = Array.isArray(r.data) ? r.data[0] : r.data;
     if (!d) { $('err').textContent = 'Código inválido ou expirado. Confira com o porteiro.'; return; }
-    show(d);
-  };
-
-  function show(d) {
-    $('step1').style.display = 'none'; $('step2').style.display = 'block';
-    $('cname').textContent = d.condominio;
-    $('dest').textContent = 'Quadra ' + d.quadra + ', Lote ' + d.lote;
-    $('obs').textContent = d.obs || '';
-    $('aG').href = 'https://www.google.com/maps/dir/?api=1&destination=' + d.lat + ',' + d.lng;
-    $('aW').href = 'https://waze.com/ul?ll=' + d.lat + ',' + d.lng + '&navigate=yes';
-    if (!map) {
-      map = L.map('map', { zoomControl: false, attributionControl: true });
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 20, attribution: '&copy; Esri' }).addTo(map);
-    }
-    map.setView([d.lat, d.lng], 18);
-    if (pin) map.removeLayer(pin);
-    pin = L.circleMarker([d.lat, d.lng], { radius: 10, color: '#fff', weight: 3, fillColor: '#d85a30', fillOpacity: 1 }).addTo(map);
-    setTimeout(function () { map.invalidateSize(); }, 50);
+    $('code').value = '';
+    startNav(d);
   }
 
-  $('again').onclick = function () { $('step2').style.display = 'none'; $('step1').style.display = 'block'; $('code').value = ''; $('code').focus(); };
-  $('code').focus();
+  function distM(a, b) {
+    var R = 6371000, toR = Math.PI / 180;
+    var dLat = (b[0] - a[0]) * toR, dLng = (b[1] - a[1]) * toR;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a[0] * toR) * Math.cos(b[0] * toR) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function fmt(m) { return m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km'; }
+
+  function startNav(d) {
+    dest = [d.lat, d.lng];
+    $('start').style.display = 'none'; $('nav').style.display = 'flex';
+    $('dest').textContent = 'Quadra ' + d.quadra + ', Lote ' + d.lote;
+    $('obs').textContent = (d.obs ? d.obs + ' · ' : '') + d.condominio;
+
+    if (d.portaria_lat != null) {
+      $('aG').href = 'https://www.google.com/maps/dir/?api=1&destination=' + d.portaria_lat + ',' + d.portaria_lng;
+      $('aW').href = 'https://waze.com/ul?ll=' + d.portaria_lat + ',' + d.portaria_lng + '&navigate=yes';
+      $('portRow').style.display = 'flex';
+    }
+
+    if (!map) {
+      map = L.map('map', { zoomControl: true, maxZoom: 20 });
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 20, attribution: '&copy; Esri' }).addTo(map);
+    }
+    destLayer = L.layerGroup().addTo(map);
+    L.circleMarker(dest, { radius: 11, color: '#fff', weight: 3, fillColor: '#d85a30', fillOpacity: 1 })
+      .bindTooltip('Destino', { permanent: true, direction: 'top', offset: [0, -10], className: 'lbl' }).addTo(destLayer);
+    if (d.portaria_lat != null) {
+      L.circleMarker([d.portaria_lat, d.portaria_lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#555', fillOpacity: 1 })
+        .bindTooltip('Portaria', { permanent: true, direction: 'top', offset: [0, -8], className: 'lbl p' }).addTo(destLayer);
+    }
+    map.setView(dest, 18);
+    setTimeout(function () { map.invalidateSize(); }, 50);
+
+    var until = new Date(d.valido_ate).getTime();
+    function tick() {
+      var s = Math.max(0, Math.round((until - Date.now()) / 1000));
+      $('timer').textContent = 'Válido por ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      if (!s) endNav('O código expirou. Se ainda não entregou, peça um novo código ao porteiro.');
+    }
+    tick(); timerId = setInterval(tick, 1000);
+
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(onPos, function () {
+        $('gpsMsg').textContent = 'Sem acesso à localização. Use o mapa para se orientar até o pino laranja.';
+        $('dist').textContent = '';
+      }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+    } else {
+      $('gpsMsg').textContent = 'Este celular não informa a localização. Use o mapa para se orientar.';
+    }
+  }
+
+  function onPos(p) {
+    if (!dest) return;
+    var me = [p.coords.latitude, p.coords.longitude];
+    var acc = p.coords.accuracy || 0;
+    if (!meMarker) {
+      meMarker = L.marker(me, { icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
+      meCircle = L.circle(me, { radius: acc, color: '#1a73e8', weight: 1, fillOpacity: 0.08 }).addTo(map);
+      line = L.polyline([me, dest], { color: '#fff', weight: 3, dashArray: '6 8', opacity: 0.9 }).addTo(map);
+    } else {
+      meMarker.setLatLng(me); meCircle.setLatLng(me).setRadius(acc); line.setLatLngs([me, dest]);
+    }
+    var m = distM(me, dest);
+    $('dist').textContent = 'Faltam ' + fmt(m);
+    $('gpsMsg').textContent = 'Siga em direção ao pino laranja. Precisão do GPS: ~' + Math.round(acc) + ' m';
+    $('arrived').style.display = m < Math.max(15, acc) ? 'block' : 'none';
+    if (!fitted && m < 3000) { map.fitBounds([me, dest], { padding: [50, 50], maxZoom: 19 }); fitted = true; }
+  }
+
+  function endNav(msg) {
+    clearInterval(timerId); timerId = null;
+    if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    if (destLayer) { map.removeLayer(destLayer); destLayer = null; }
+    if (meMarker) { map.removeLayer(meMarker); map.removeLayer(meCircle); map.removeLayer(line); meMarker = meCircle = line = null; }
+    dest = null; fitted = false;
+    $('nav').style.display = 'none'; $('start').style.display = 'block';
+    $('dest').textContent = ''; $('obs').textContent = ''; $('arrived').style.display = 'none'; $('portRow').style.display = 'none';
+    $('err').textContent = msg || '';
+    $('err').style.color = /concluída/.test(msg || '') ? '#0f6e56' : '#a32d2d';
+  }
+  $('done').onclick = function () { endNav('Entrega concluída. Obrigado!'); };
+
+  if (preCode.length === 4) { $('code').value = preCode; submit(); } else { $('code').focus(); }
 })();
 </script>
 </body>
