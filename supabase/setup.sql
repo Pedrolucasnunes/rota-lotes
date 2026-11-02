@@ -197,3 +197,74 @@ $$;
 
 revoke all on function public.buscar_entrega(text, text) from public;
 grant execute on function public.buscar_entrega(text, text) to anon, authenticated;
+
+-- 9) Ruas internas (importadas do OpenStreetMap ou desenhadas no painel) e versão final de buscar_entrega,
+--    que devolve a portaria e as ruas do condomínio para a página do entregador calcular o caminho.
+create table if not exists public.ruas (
+  id             uuid primary key default gen_random_uuid(),
+  condominio_id  uuid not null references public.condominios(id) on delete cascade,
+  coords         jsonb not null,
+  origem         text not null default 'manual',
+  osm_id         bigint,
+  criado_em      timestamptz not null default now(),
+  unique (condominio_id, osm_id)
+);
+create index if not exists ruas_condo_idx on public.ruas (condominio_id);
+alter table public.ruas enable row level security;
+drop policy if exists equipe_ruas on public.ruas;
+create policy equipe_ruas on public.ruas for all to authenticated using (true) with check (true);
+grant select, insert, update, delete on public.ruas to authenticated;
+
+drop function if exists public.buscar_entrega(text, text);
+create function public.buscar_entrega(p_slug text, p_codigo text)
+returns table (condominio text, quadra text, lote text, obs text,
+               lat double precision, lng double precision, valido_ate timestamptz,
+               portaria_lat double precision, portaria_lng double precision, ruas jsonb)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ip    text;
+  v_erros int;
+  v_erros_condo int;
+  v_achou boolean := false;
+begin
+  v_ip := coalesce(
+    split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1),
+    ''
+  );
+  if v_ip = '' then v_ip := 'desconhecido'; end if;
+
+  select count(*) into v_erros
+    from tentativas_codigo t
+   where t.ip = v_ip and not t.acertou and t.em > now() - interval '15 minutes';
+
+  select count(*) into v_erros_condo
+    from tentativas_codigo t
+   where t.slug = p_slug and not t.acertou and t.em > now() - interval '15 minutes';
+
+  if v_erros >= 8 or v_erros_condo >= 100 then
+    raise exception 'MUITAS_TENTATIVAS' using errcode = 'P0001';
+  end if;
+
+  return query
+  update entregas e
+     set aberto_em = coalesce(e.aberto_em, now())
+    from lotes l, condominios c
+   where e.lote_id = l.id
+     and e.condominio_id = c.id
+     and c.slug = p_slug
+     and e.codigo = p_codigo
+     and e.expira_em > now()
+  returning c.nome, l.quadra, l.lote, l.obs, l.lat, l.lng, e.expira_em, c.portaria_lat, c.portaria_lng,
+            (select coalesce(jsonb_agg(r.coords), '[]'::jsonb) from ruas r where r.condominio_id = c.id);
+
+  v_achou := found;
+  insert into tentativas_codigo (ip, slug, acertou) values (v_ip, p_slug, v_achou);
+  delete from tentativas_codigo where em < now() - interval '1 day';
+end;
+$$;
+
+revoke all on function public.buscar_entrega(text, text) from public;
+grant execute on function public.buscar_entrega(text, text) to anon, authenticated;

@@ -78,6 +78,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="rotas.js"></script>
 <script>
 (function () {
   function $(id) { return document.getElementById(id); }
@@ -90,7 +91,7 @@
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
   var map = null, destLayer = null, meMarker = null, meCircle = null, line = null;
-  var watchId = null, timerId = null, dest = null, fitted = false;
+  var watchId = null, timerId = null, dest = null, fitted = false, path = null, routeLayer = null;
 
   $('code').addEventListener('input', function () {
     this.value = this.value.replace(/\D/g, '').slice(0, 4); $('err').textContent = '';
@@ -149,7 +150,21 @@
       L.circleMarker([d.portaria_lat, d.portaria_lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#555', fillOpacity: 1 })
         .bindTooltip('Portaria', { permanent: true, direction: 'top', offset: [0, -8], className: 'lbl p' }).addTo(destLayer);
     }
-    map.setView(dest, 18);
+    path = null;
+    var g = (d.ruas && d.ruas.length) ? Rotas.buildGraph(d.ruas) : null;
+    if (g && d.portaria_lat != null) {
+      var rt = Rotas.route(g, [d.portaria_lat, d.portaria_lng], dest);
+      if (rt && rt.endGap < 80) {
+        path = [[d.portaria_lat, d.portaria_lng]].concat(rt.path, [dest]);
+        routeLayer = L.layerGroup().addTo(map);
+        L.polyline(path, { color: '#fff', weight: 10, opacity: 0.95 }).addTo(routeLayer);
+        L.polyline(path, { color: '#1a73e8', weight: 6 }).addTo(routeLayer);
+        map.attributionControl.addAttribution('Ruas &copy; OpenStreetMap contributors');
+      }
+    }
+    if (path) map.fitBounds(L.latLngBounds(path), { padding: [40, 40], maxZoom: 19 });
+    else map.setView(dest, 18);
+    $('dist').textContent = path ? 'Siga a linha azul' : 'Localizando você...';
     setTimeout(function () { map.invalidateSize(); }, 50);
 
     var until = new Date(d.valido_ate).getTime();
@@ -194,24 +209,38 @@
     var me = [p.coords.latitude, p.coords.longitude];
     var acc = p.coords.accuracy || 0;
     if (!meMarker) {
-      meMarker = L.marker(me, { icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
-      meCircle = L.circle(me, { radius: acc, color: '#1a73e8', weight: 1, fillOpacity: 0.08 }).addTo(map);
-      line = L.polyline([me, dest], { color: '#fff', weight: 3, dashArray: '6 8', opacity: 0.9 }).addTo(map);
+      meMarker = L.marker(me, { icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), zIndexOffset: 1000 }).addTo(map);
+      meCircle = L.circle(me, { radius: acc, color: '#1a73e8', weight: 1, fillOpacity: 0.08, interactive: false }).addTo(map);
+      line = L.polyline([me, dest], { color: '#fff', weight: 3, dashArray: '6 8', opacity: 0.9, interactive: false }).addTo(map);
     } else {
-      meMarker.setLatLng(me); meCircle.setLatLng(me).setRadius(acc); line.setLatLngs([me, dest]);
+      meMarker.setLatLng(me); meCircle.setLatLng(me).setRadius(acc);
     }
-    var m = distM(me, dest);
+    var m, target;
+    if (path) {
+      var pr = Rotas.progress(path, me);
+      m = pr.remaining + pr.gap; target = pr.pt;
+      line.setLatLngs(pr.gap > Math.max(10, acc) ? [me, target] : []);
+      $('gpsMsg').textContent = pr.gap > 40 ? 'Vá até a linha azul e siga por ela até o pino laranja.' : 'Siga a linha azul até o pino laranja. Precisão do GPS: ~' + Math.round(acc) + ' m';
+    } else {
+      m = distM(me, dest); target = dest;
+      line.setLatLngs([me, dest]);
+      $('gpsMsg').textContent = 'Siga em direção ao pino laranja. Precisão do GPS: ~' + Math.round(acc) + ' m';
+    }
     $('dist').textContent = 'Faltam ' + fmt(m);
-    $('gpsMsg').textContent = 'Siga em direção ao pino laranja. Precisão do GPS: ~' + Math.round(acc) + ' m';
     $('gpsBtn').style.display = 'none';
-    $('arrived').style.display = m < Math.max(15, acc) ? 'block' : 'none';
-    if (!fitted && m < 3000) { map.fitBounds([me, dest], { padding: [50, 50], maxZoom: 19 }); fitted = true; }
+    var direct = distM(me, dest);
+    $('arrived').style.display = direct < Math.max(15, acc) ? 'block' : 'none';
+    if (!fitted && direct < 3000) {
+      map.fitBounds(L.latLngBounds((path || [dest]).concat([me])), { padding: [50, 50], maxZoom: 19 }); fitted = true;
+    }
   }
 
   function endNav(msg) {
     clearInterval(timerId); timerId = null;
     if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     if (destLayer) { map.removeLayer(destLayer); destLayer = null; }
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    path = null;
     if (meMarker) { map.removeLayer(meMarker); map.removeLayer(meCircle); map.removeLayer(line); meMarker = meCircle = line = null; }
     dest = null; fitted = false;
     $('nav').style.display = 'none'; $('start').style.display = 'block';

@@ -130,8 +130,16 @@
           <div class="row" style="margin-top:6px"><button id="btnLocate">Minha localização</button><button id="btnLayer">Ver mapa de ruas</button></div>
         </div>
         <div class="sec">
-          <div class="row"><button id="btnModeLote" class="active">Cadastrar lote</button><button id="btnModePortaria">Marcar portaria</button></div>
+          <div class="row"><button id="btnModeLote" class="active">Lotes</button><button id="btnModePortaria">Portaria</button><button id="btnModeRuas">Ruas</button></div>
           <div class="hint" id="modeHint">Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.</div>
+          <div id="ruasBox" style="display:none;margin-top:8px">
+            <button id="btnOsm" style="width:100%">Importar ruas do OpenStreetMap</button>
+            <div class="row" style="margin-top:6px">
+              <button id="btnRuaFim" class="primary" disabled>Concluir rua</button>
+              <button id="btnRuaUndo" disabled>Desfazer ponto</button>
+              <button id="btnRuaCancel" disabled>Cancelar</button>
+            </div>
+          </div>
         </div>
         <div class="count" id="count"></div>
         <div id="list"></div>
@@ -227,6 +235,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="rotas.js"></script>
 <script>
 (async function () {
   function $(id) { return document.getElementById(id); }
@@ -304,6 +313,9 @@
     var r = await db.from('lotes').select('*').eq('condominio_id', id);
     if (r.error) { toast('Erro ao carregar lotes: ' + r.error.message); return; }
     lotes = r.data;
+    var rr = await db.from('ruas').select('id, coords, origem, osm_id').eq('condominio_id', id);
+    if (rr.error) { toast('Erro ao carregar ruas: ' + rr.error.message); ruas = []; } else ruas = rr.data;
+    cancelDraw(); clearTest();
     redrawAll();
     if (fit) fitAll();
     pSelId = null; clearCode(); renderPortaria(); renderTotem();
@@ -340,17 +352,27 @@
     map.on('popupopen', function (e) {
       var a = e.popup.getElement().querySelector('[data-edit]');
       if (a) a.onclick = function (ev) { ev.preventDefault(); var l = lotes.find(function (x) { return x.id === a.getAttribute('data-edit'); }); map.closePopup(); if (l) openModal(l); };
+      var t = e.popup.getElement().querySelector('[data-route]');
+      if (t) t.onclick = function (ev) { ev.preventDefault(); var l = lotes.find(function (x) { return x.id === t.getAttribute('data-route'); }); map.closePopup(); if (l) testRoute(l); };
+      var dr = e.popup.getElement().querySelector('[data-delrua]');
+      if (dr) dr.onclick = function (ev) { ev.preventDefault(); map.closePopup(); deleteRua(dr.getAttribute('data-delrua')); };
     });
   }
 
   function setMode(m) {
     mode = m;
+    if (m !== 'ruas') cancelDraw();
     $('btnModeLote').classList.toggle('active', m === 'lote');
     $('btnModePortaria').classList.toggle('active', m === 'portaria');
-    $('modeHint').textContent = m === 'lote' ? 'Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.' : 'Clique no ponto exato da portaria.';
+    $('btnModeRuas').classList.toggle('active', m === 'ruas');
+    $('ruasBox').style.display = m === 'ruas' ? 'block' : 'none';
+    $('modeHint').textContent = m === 'lote' ? 'Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.'
+      : m === 'portaria' ? 'Clique no ponto exato da portaria.'
+      : 'Primeiro importe do OpenStreetMap. Onde faltar rua, clique ponto a ponto pelo meio da rua e depois em "Concluir rua". Comece e termine em cima de outra rua (linha amarela) para ligá-las. Clique numa rua para excluí-la.';
   }
   $('btnModeLote').onclick = function () { setMode('lote'); };
   $('btnModePortaria').onclick = function () { setMode('portaria'); };
+  $('btnModeRuas').onclick = function () { setMode('ruas'); };
 
   async function onMapClick(e) {
     if (Date.now() - justDragged < 400) return;
@@ -361,7 +383,8 @@
       if (r.error) { toast('Erro: ' + r.error.message); return; }
       condo.portaria_lat = lat; condo.portaria_lng = lng;
       drawPortaria(); renderCount(); setMode('lote'); toast('Portaria marcada');
-    } else openModal(null, e.latlng);
+    } else if (mode === 'ruas') addVertex([e.latlng.lat, e.latlng.lng]);
+    else openModal(null, e.latlng);
   }
 
   function drawPortaria() {
@@ -374,8 +397,7 @@
   function popupHtml(l) {
     return '<div class="popup"><b>' + esc(nome(l)) + '</b>' + (l.obs ? '<br>' + esc(l.obs) : '') +
       '<br><small>' + l.lat + ', ' + l.lng + '</small><br>' +
-      '<a href="' + gmaps(l.lat, l.lng) + '" target="_blank" rel="noopener">Google Maps</a>' +
-      '<a href="' + waze(l.lat, l.lng) + '" target="_blank" rel="noopener">Waze</a><br>' +
+      '<a href="#" data-route="' + l.id + '">Testar caminho</a>' +
       '<a href="#" data-edit="' + l.id + '">Editar</a></div>';
   }
 
@@ -404,7 +426,7 @@
   function renderCount() {
     var n = lotes.length;
     $('count').textContent = !condo ? 'Nenhum condomínio selecionado' :
-      n + (n === 1 ? ' lote' : ' lotes') + ' · ' + (condo.portaria_lat != null ? 'portaria marcada' : 'portaria não marcada');
+      n + (n === 1 ? ' lote' : ' lotes') + ' · ' + ruas.length + (ruas.length === 1 ? ' rua' : ' ruas') + ' · ' + (condo.portaria_lat != null ? 'portaria marcada' : 'portaria não marcada');
   }
   function renderList() {
     var list = $('list'); list.innerHTML = '';
@@ -418,7 +440,107 @@
   }
   function redrawAll() {
     Object.keys(markers).forEach(function (k) { map.removeLayer(markers[k]); }); markers = {};
-    lotes.forEach(drawLote); drawPortaria(); renderList();
+    drawRuas(); lotes.forEach(drawLote); drawPortaria(); renderList();
+  }
+
+  // ---------- RUAS ----------
+  var ruas = [], ruasLayer = null, ruasGraph = null, drawPts = null, drawLine = null, drawDots = null, testLayer = null;
+  function drawRuas() {
+    if (ruasLayer) map.removeLayer(ruasLayer);
+    ruasLayer = L.layerGroup().addTo(map);
+    ruas.forEach(function (r) {
+      var pl = L.polyline(r.coords, { color: '#f5c518', weight: 5, opacity: 0.85, bubblingMouseEvents: false }).addTo(ruasLayer);
+      pl.on('click', function (e) {
+        if (drawPts) { addVertex([e.latlng.lat, e.latlng.lng]); return; }
+        if (mode !== 'ruas') return;
+        L.popup().setLatLng(e.latlng).setContent('<div class="popup">Rua ' + (r.origem === 'osm' ? 'importada do OpenStreetMap' : 'desenhada à mão') +
+          '<br><a href="#" data-delrua="' + r.id + '">Excluir esta rua</a></div>').openOn(map);
+      });
+    });
+    ruasGraph = Rotas.buildGraph(ruas.map(function (r) { return r.coords; }));
+    renderCount();
+  }
+  function snap(p) {
+    var cands = [];
+    if (ruasGraph) { var n = Rotas.nearest(ruasGraph, p); if (n) cands.push(n); }
+    if (drawPts && drawPts.length > 2) { var d0 = Rotas.dist(p, drawPts[0]); cands.push({ d: d0, pt: drawPts[0] }); }
+    var best = cands.sort(function (a, b) { return a.d - b.d; })[0];
+    if (best && best.d <= 8) return [r6(best.pt[0]), r6(best.pt[1])];
+    return [r6(p[0]), r6(p[1])];
+  }
+  function addVertex(p) {
+    if (!condo) return;
+    if (!drawPts) { drawPts = []; drawDots = L.layerGroup().addTo(map); drawLine = L.polyline([], { color: '#e8590c', weight: 4, dashArray: '6 6' }).addTo(map); }
+    var q = snap(p); drawPts.push(q);
+    L.circleMarker(q, { radius: 4, color: '#e8590c', fillColor: '#fff', fillOpacity: 1, weight: 2, interactive: false }).addTo(drawDots);
+    drawLine.setLatLngs(drawPts); updDrawBtns();
+  }
+  function updDrawBtns() {
+    var n = drawPts ? drawPts.length : 0;
+    $('btnRuaFim').disabled = n < 2; $('btnRuaUndo').disabled = n < 1; $('btnRuaCancel').disabled = n < 1;
+  }
+  function cancelDraw() {
+    if (drawLine) map.removeLayer(drawLine); if (drawDots) map.removeLayer(drawDots);
+    drawPts = null; drawLine = null; drawDots = null; if ($('btnRuaFim')) updDrawBtns();
+  }
+  $('btnRuaCancel').onclick = cancelDraw;
+  $('btnRuaUndo').onclick = function () {
+    if (!drawPts || !drawPts.length) return;
+    drawPts.pop(); var dots = drawDots.getLayers(); drawDots.removeLayer(dots[dots.length - 1]);
+    drawLine.setLatLngs(drawPts); if (!drawPts.length) cancelDraw(); else updDrawBtns();
+  };
+  $('btnRuaFim').onclick = async function () {
+    if (!drawPts || drawPts.length < 2) return;
+    this.disabled = true;
+    var r = await db.from('ruas').insert({ condominio_id: condo.id, coords: drawPts, origem: 'manual' }).select('id, coords, origem, osm_id').single();
+    if (r.error) { toast('Erro ao salvar rua: ' + r.error.message); updDrawBtns(); return; }
+    ruas.push(r.data); cancelDraw(); drawRuas(); toast('Rua salva');
+  };
+  async function deleteRua(id) {
+    var r = await db.from('ruas').delete().eq('id', id);
+    if (r.error) { toast('Erro: ' + r.error.message); return; }
+    ruas = ruas.filter(function (x) { return x.id !== id; }); drawRuas(); clearTest(); toast('Rua excluída');
+  }
+  $('btnOsm').onclick = async function () {
+    if (!condo) { toast('Crie um condomínio primeiro'); return; }
+    var pts = lotes.map(function (l) { return [l.lat, l.lng]; });
+    if (condo.portaria_lat != null) pts.push([condo.portaria_lat, condo.portaria_lng]);
+    var b;
+    if (pts.length) { b = L.latLngBounds(pts).pad(0.15); var pad = 0.0008; b = L.latLngBounds([b.getSouth() - pad, b.getWest() - pad], [b.getNorth() + pad, b.getEast() + pad]); }
+    else { if (map.getZoom() < 15) { toast('Aproxime o mapa do condomínio antes de importar'); return; } b = map.getBounds(); }
+    var q = '[out:json][timeout:25];way["highway"~"^(residential|service|living_street|unclassified|tertiary|road)$"](' +
+      [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(function (v) { return v.toFixed(6); }).join(',') + ');out geom;';
+    this.disabled = true; this.textContent = 'Buscando no OpenStreetMap...';
+    try {
+      var resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      if (!resp.ok) throw new Error('OpenStreetMap respondeu ' + resp.status);
+      var js = await resp.json();
+      var have = {}; ruas.forEach(function (r) { if (r.osm_id) have[r.osm_id] = 1; });
+      var rows = (js.elements || []).filter(function (w) { return w.type === 'way' && w.geometry && w.geometry.length >= 2 && !have[w.id]; })
+        .map(function (w) { return { condominio_id: condo.id, origem: 'osm', osm_id: w.id, coords: w.geometry.map(function (g) { return [r6(g.lat), r6(g.lon)]; }) }; });
+      if (!rows.length) { toast((js.elements || []).length ? 'Nenhuma rua nova: já foram importadas.' : 'O OpenStreetMap não tem ruas nesta área. Desenhe-as à mão.'); return; }
+      var r = await db.from('ruas').insert(rows).select('id, coords, origem, osm_id');
+      if (r.error) throw r.error;
+      ruas = ruas.concat(r.data); drawRuas();
+      toast(r.data.length + ' ruas importadas. Confira no satélite: exclua as que não servem e desenhe as que faltam.');
+    } catch (e) { toast('Não consegui importar: ' + (e.message || e)); }
+    finally { this.disabled = false; this.textContent = 'Importar ruas do OpenStreetMap'; }
+  };
+  function clearTest() { if (testLayer) { map.removeLayer(testLayer); testLayer = null; } }
+  function testRoute(l) {
+    clearTest();
+    if (!condo || condo.portaria_lat == null) { toast('Marque a portaria primeiro'); return; }
+    var from = [condo.portaria_lat, condo.portaria_lng], to = [l.lat, l.lng];
+    var rt = Rotas.route(ruasGraph, from, to);
+    if (!rt) { toast(ruas.length ? 'Sem caminho: as ruas entre a portaria e esta casa não estão ligadas.' : 'Nenhuma rua mapeada ainda (aba Ruas).'); return; }
+    testLayer = L.layerGroup().addTo(map);
+    L.polyline([from, rt.path[0]], { color: '#1a73e8', weight: 3, dashArray: '4 6' }).addTo(testLayer);
+    L.polyline(rt.path, { color: '#fff', weight: 9, opacity: 0.9 }).addTo(testLayer);
+    L.polyline(rt.path, { color: '#1a73e8', weight: 5 }).addTo(testLayer);
+    L.polyline([rt.path[rt.path.length - 1], to], { color: '#1a73e8', weight: 3, dashArray: '4 6' }).addTo(testLayer);
+    map.fitBounds(L.latLngBounds(rt.path.concat([from, to])), { padding: [40, 40] });
+    var total = rt.length + rt.startGap + rt.endGap;
+    toast('Caminho: ' + Math.round(total) + ' m' + (rt.endGap > 40 ? ' (casa longe da rua mais próxima: confira as ruas)' : ''));
   }
   function fitAll() {
     var pts = lotes.map(function (l) { return [l.lat, l.lng]; });
