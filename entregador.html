@@ -35,6 +35,7 @@
   .row { display: flex; gap: 8px; }
   .row > * { flex: 1; }
   .port { background: #eef3f1; color: #0c5a46; font-size: 14px; padding: 11px; }
+  .port.hl { background: #0f6e56; color: #fff; }
   #arrived { display: none; background: #e1f5ee; color: #085041; border-radius: 10px; padding: 10px; text-align: center; font-weight: 700; margin-bottom: 8px; }
   .me { width: 18px; height: 18px; border-radius: 50%; background: #1a73e8; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.2); }
   .lbl { background: #fff; border: 1px solid #993c1d; color: #993c1d; font-weight: 700; font-size: 12px; padding: 2px 6px; border-radius: 4px; box-shadow: none; }
@@ -91,7 +92,7 @@
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
   var map = null, destLayer = null, meMarker = null, meCircle = null, line = null;
-  var watchId = null, timerId = null, dest = null, fitted = false, path = null, routeLayer = null;
+  var watchId = null, timerId = null, dest = null, fitted = false, path = null, routeLayer = null, portaria = null;
 
   $('code').addEventListener('input', function () {
     this.value = this.value.replace(/\D/g, '').slice(0, 4); $('err').textContent = '';
@@ -133,6 +134,7 @@
     $('dest').textContent = 'Quadra ' + d.quadra + ', Lote ' + d.lote;
     $('obs').textContent = (d.obs ? d.obs + ' · ' : '') + d.condominio;
 
+    portaria = d.portaria_lat != null ? [d.portaria_lat, d.portaria_lng] : null;
     if (d.portaria_lat != null) {
       $('aG').href = 'https://www.google.com/maps/dir/?api=1&destination=' + d.portaria_lat + ',' + d.portaria_lng;
       $('aW').href = 'https://waze.com/ul?ll=' + d.portaria_lat + ',' + d.portaria_lng + '&navigate=yes';
@@ -229,6 +231,17 @@
       meMarker.setLatLng(me); meCircle.setLatLng(me).setRadius(acc);
     }
     var m, target;
+    // Longe do condomínio: quem leva até a portaria é o Google Maps/Waze; aqui não desenhamos nada
+    var farGate = portaria ? distM(me, portaria) : 0;
+    var outside = portaria && farGate > 250 && (!path || Rotas.progress(path, me).gap > 150);
+    $('aG').classList.toggle('hl', !!outside); $('aW').classList.toggle('hl', !!outside);
+    if (outside) {
+      line.setLatLngs([]);
+      $('dist').textContent = 'Você está a ' + fmt(farGate) + ' da portaria';
+      $('gpsMsg').textContent = 'Primeiro vá até a portaria pelo Google Maps ou Waze (botões abaixo). Ao chegar, siga a linha azul.';
+      $('gpsBtn').style.display = 'none'; $('arrived').style.display = 'none';
+      return;
+    }
     if (path) {
       var pr = Rotas.progress(path, me);
       m = pr.remaining + pr.gap; target = pr.pt;
@@ -258,6 +271,7 @@
     dest = null; fitted = false;
     $('nav').style.display = 'none'; $('start').style.display = 'block';
     $('dest').textContent = ''; $('obs').textContent = ''; $('arrived').style.display = 'none'; $('portRow').style.display = 'none'; $('gpsBtn').style.display = 'none';
+    $('aG').classList.remove('hl'); $('aW').classList.remove('hl'); portaria = null;
     $('err').textContent = msg || '';
     $('err').style.color = /concluída/.test(msg || '') ? '#0f6e56' : '#a32d2d';
   }
