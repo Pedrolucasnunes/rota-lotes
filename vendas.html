@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0f6e56">
+<meta property="og:title" content="Mapa de vendas de lotes">
+<meta property="og:description" content="Veja os lotes disponíveis e o caminho até cada um.">
+<title>Mapa de vendas</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --verde: #0f6e56; --verde-escuro: #0c5a46; --verde-claro: #e1f5ee;
+    --disp: #1d9e75; --disp-txt: #085041;
+    --res: #f2b200; --res-txt: #6b4e00;
+    --vend: #9aa0a6; --vend-txt: #4a5056;
+    --stand: #6b46c1; --rota: #1a73e8;
+    --tinta: #1f2328; --suave: #5c6166; --papel: #f6f6f4; --borda: #e3e3e3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--tinta); background: var(--papel); -webkit-text-size-adjust: 100%; }
+  [hidden] { display: none !important; }
+  button { font: inherit; }
+  :focus-visible { outline: 3px solid var(--rota); outline-offset: 2px; }
+  .primary, .soft { display: block; width: 100%; border: 0; border-radius: 12px; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
+  .primary { min-height: 52px; padding: 14px; background: var(--verde); color: #fff; font-size: 17px; }
+  .primary:active { background: var(--verde-escuro); }
+  .soft { min-height: 46px; padding: 12px; background: #eef3f1; color: var(--verde-escuro); font-size: 15px; font-weight: 600; }
+  .soft.hl { background: var(--verde); color: #fff; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+
+  /* Carregando / link inválido / mapa desligado */
+  #msg { max-width: 440px; margin: 0 auto; padding: 56px 20px; }
+  #msg h1 { margin: 0 0 8px; font-size: 22px; }
+  #msg p { margin: 0 0 18px; color: #444; font-size: 16px; line-height: 1.45; }
+
+  #app { display: flex; flex-direction: column; height: 100%; }
+  #top { padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--borda); }
+  #nome { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.25; }
+  #resumo { margin: 2px 0 10px; color: var(--verde); font-size: 15px; font-weight: 700; }
+  .seg { display: flex; gap: 4px; max-width: 420px; padding: 4px; border-radius: 12px; background: #edf0ee; }
+  #cTitle:focus { outline: none; }
+  .seg button { flex: 1; min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: #3d4247; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--verde); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+
+  #mapWrap { position: relative; flex: 1; min-height: 200px; }
+  #map { position: absolute; inset: 0; background: #d9dfdc; }
+  #btnLayer { position: absolute; top: 10px; right: 10px; z-index: 800; min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #fff; color: var(--tinta); font-size: 15px; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; }
+  /* Legenda no topo, fora do mapa, para não cobrir a rota nem o stand */
+  #legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 10px; padding: 0; list-style: none; color: #3d4247; font-size: 14px; }
+  #legend li { display: flex; align-items: center; gap: 6px; }
+  #legend b { font-variant-numeric: tabular-nums; }
+  .dot { flex: none; display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+  .dot.disponivel { background: var(--disp); }
+  .dot.reservado { background: var(--res); }
+  .dot.vendido { background: var(--vend); }
+
+  /* Lotes no mapa: bolinha na cor da situação; o número aparece com o mapa bem aproximado */
+  .lt i, .pt i { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.45); }
+  .lt i { left: 7px; top: 7px; width: 16px; height: 16px; border-radius: 50%; }
+  .lt.disponivel i { background: var(--disp); }
+  .lt.reservado i { background: var(--res); }
+  .lt.vendido i { background: var(--vend); }
+  .lt span, .pt span { position: absolute; left: 50%; bottom: 27px; transform: translateX(-50%); padding: 1px 6px; border: 1px solid; border-radius: 5px; background: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .lt span { display: none; }
+  .lt.disponivel span { color: var(--disp-txt); border-color: var(--disp); }
+  .lt.reservado span { color: var(--res-txt); border-color: var(--res); }
+  .lt.vendido span { color: var(--vend-txt); border-color: var(--vend); }
+  .labels .lt span, .lt.sel span { display: block; }
+  .lt.sel i { left: 3px; top: 3px; width: 24px; height: 24px; border-width: 3px; box-shadow: 0 0 0 3px var(--rota); }
+  .pt i { left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 5px; background: #555; }
+  .pt span { border-color: #555; color: #333; }
+  .pt.portaria span { bottom: auto; top: 27px; }   /* abaixo do pino: não briga com o rótulo do stand ao lado */
+  .pt.stand i { background: var(--stand); }
+  .pt.stand span { border-color: var(--stand); color: var(--stand); }
+  .me { width: 18px; height: 18px; border-radius: 50%; background: var(--rota); border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.2); }
+
+  #sheet { max-height: 52vh; overflow-y: auto; padding: 14px 16px 16px; background: #fff; border-top: 1px solid var(--borda); }
+  #sheet > div { max-width: 560px; margin: 0 auto; }
+  #card:not([hidden]) + #navBox { margin-top: 14px; }
+  .hint { margin: 0 0 12px; color: var(--suave); font-size: 15px; line-height: 1.4; }
+  #navT { margin: 0 0 6px; color: #3d4247; font-size: 14px; font-weight: 600; }
+  .cardHead { display: flex; align-items: flex-start; gap: 10px; }
+  #cTitle { flex: 1; margin: 0; font-size: 22px; font-weight: 800; line-height: 1.2; }
+  #cClose { flex: none; width: 44px; height: 44px; margin: -6px -8px 0 0; border: 0; border-radius: 50%; background: #f0f1f0; color: #333; font-size: 26px; line-height: 1; cursor: pointer; }
+  .badge { display: inline-flex; align-items: center; gap: 7px; margin: 6px 0 12px; padding: 4px 11px 4px 8px; border-radius: 999px; font-size: 14px; font-weight: 700; }
+  .badge .dot { width: 11px; height: 11px; border: 0; box-shadow: none; }
+  .badge.disponivel { background: var(--verde-claro); color: var(--disp-txt); }
+  .badge.reservado { background: #fdf3d3; color: var(--res-txt); }
+  .badge.vendido { background: #eceeef; color: var(--vend-txt); }
+  .facts { display: flex; gap: 28px; margin: 0 0 14px; }
+  .facts dt { color: var(--suave); font-size: 13px; }
+  .facts dd { margin: 2px 0 0; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #cNote { margin: 0 0 12px; color: #3d4247; font-size: 15px; line-height: 1.4; }
+  #rDist { margin: 0 0 6px; color: var(--rota); font-size: 18px; font-weight: 800; }
+  #rInfo { margin: 0 0 12px; color: var(--suave); font-size: 14px; line-height: 1.45; }
+  #arrived { margin: 0 0 10px; padding: 10px; border-radius: 10px; background: var(--verde-claro); color: var(--disp-txt); font-weight: 700; text-align: center; }
+
+  /* Celular deitado: sobra pouca altura, então o topo e a legenda encolhem */
+  @media (max-height: 520px) {
+    #top { padding: 6px 12px; }
+    #resumo { display: none; }
+    .seg button { min-height: 36px; }
+    #legend { display: none; }
+    #sheet { max-height: 46vh; padding-top: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="msg">
+  <h1 id="msgT">Carregando o mapa de vendas...</h1>
+  <p id="msgP"></p>
+  <button type="button" class="primary" id="retry" hidden>Tentar de novo</button>
+</div>
+
+<div id="app" hidden>
+  <header id="top">
+    <h1 id="nome"></h1>
+    <p id="resumo"></p>
+    <ul id="legend" aria-label="Legenda das cores">
+      <li><span class="dot disponivel"></span>Disponível <b id="nDisp"></b></li>
+      <li><span class="dot reservado"></span>Reservado <b id="nRes"></b></li>
+      <li><span class="dot vendido"></span>Vendido <b id="nVend"></b></li>
+    </ul>
+    <div class="seg" role="group" aria-label="Quais lotes mostrar no mapa">
+      <button type="button" id="fTodos" aria-pressed="true">Todos</button>
+      <button type="button" id="fDisp" aria-pressed="false">Só disponíveis</button>
+    </div>
+  </header>
+  <main id="mapWrap">
+    <div id="map" aria-label="Mapa dos lotes"></div>
+    <button type="button" id="btnLayer">Ver mapa</button>
+  </main>
+  <section id="sheet">
+    <div id="idle">
+      <p class="hint" id="idleHint">Toque num lote para ver área, preço e o caminho até ele.</p>
+    </div>
+    <div id="card" hidden>
+      <div class="cardHead"><h2 id="cTitle" tabindex="-1"></h2><button type="button" id="cClose" aria-label="Fechar">&times;</button></div>
+      <span class="badge" id="cBadge"><span class="dot" id="cDot"></span><span id="cStatus"></span></span>
+      <dl class="facts" id="cFacts">
+        <div id="cAreaBox"><dt>Área</dt><dd id="cArea"></dd></div>
+        <div id="cPrecoBox"><dt>Preço</dt><dd id="cPreco"></dd></div>
+      </dl>
+      <p id="cNote" hidden></p>
+      <button type="button" class="primary" id="btnRota">Como chegar até este lote</button>
+      <div id="rota" hidden>
+        <p id="rDist"></p>
+        <div id="arrived" hidden>Você chegou ao lote</div>
+        <p id="rInfo"></p>
+        <button type="button" class="primary" id="gpsBtn" hidden>Usar minha localização</button>
+      </div>
+    </div>
+    <div id="navBox" hidden>
+      <p id="navT">Chegar ao stand de vendas</p>
+      <div class="row">
+        <a class="soft" id="aG" target="_blank" rel="noopener noreferrer">Google Maps</a>
+        <a class="soft" id="aW" target="_blank" rel="noopener noreferrer">Waze</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="rotas.js"></script>
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nome(l) { return 'Quadra ' + l.quadra + ', Lote ' + l.lote; }
+  function fmt(m) { return m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km'; }
+  function fmtNum(n) { return Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 }); }
+  var brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  var NOMES = { disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Vendido' };
+  var calm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  var params = new URLSearchParams(location.search);
+  var slug = params.get('c');
+  var cfg = window.APP_CONFIG || {};
+
+  var map = null, sat = null, carto = null, usingSat = true, osmCredit = false;
+  var lotes = [], sel = null, filtro = 'todos', graph = null;
+  var stand = null, portaria = null, origem = null;
+  var path = null, routeLayer = null, fitted = false;
+  var watchId = null, meMarker = null, meCircle = null, meLine = null, lastPos = null;
+
+  function msg(t, p, retry) {
+    $('app').hidden = true; $('msg').hidden = false;
+    $('msgT').textContent = t; $('msgP').textContent = p || ''; $('retry').hidden = !retry;
+  }
+  if (!slug) { msg('Link incompleto', 'Peça ao corretor o link do mapa de vendas.'); return; }
+  if (!window.supabase || !window.L || !window.Rotas) {
+    msg('Não foi possível carregar o mapa', 'Confira a conexão com a internet e tente de novo.', true);
+    $('retry').onclick = function () { location.reload(); };
+    return;
+  }
+  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  $('retry').onclick = load;
+
+  async function load() {
+    msg('Carregando o mapa de vendas...', '');
+    var r;
+    try { r = await db.rpc('mapa_vendas', { p_slug: slug }); } catch (e) { r = { error: e }; }
+    if (r.error) { msg('Não foi possível carregar o mapa', 'Confira a conexão com a internet e tente de novo.', true); return; }
+    var d = Array.isArray(r.data) ? r.data[0] : r.data;
+    if (!d) { msg('Mapa de vendas indisponível', 'O link está errado ou o mapa foi desligado pela loteadora. Peça o link atualizado ao corretor.'); return; }
+    start(d);
+  }
+
+  function start(d) {
+    document.title = 'Mapa de vendas: ' + d.condominio;
+    $('nome').textContent = d.condominio;
+    stand = d.stand_lat != null ? [d.stand_lat, d.stand_lng] : null;
+    portaria = d.portaria_lat != null ? [d.portaria_lat, d.portaria_lng] : null;
+    origem = stand || portaria;
+    graph = d.ruas && d.ruas.length ? Rotas.buildGraph(d.ruas) : null;
+    lotes = (d.lotes || []).map(function (l) {
+      return { quadra: l.quadra, lote: l.lote, lat: +l.lat, lng: +l.lng, area: l.area_m2, preco: l.preco,
+               status: NOMES[l.status] ? l.status : 'disponivel' };
+    });
+    $('msg').hidden = true; $('app').hidden = false;
+    initMap();
+    resumo();
+    if (portaria) ponto(portaria, 'portaria', 'Portaria');
+    if (stand) ponto(stand, 'stand', 'Stand de vendas');
+    lotes.forEach(function (l) {
+      l.marker = L.marker([l.lat, l.lng], { icon: icone(l, false), title: nome(l) + ': ' + NOMES[l.status], riseOnHover: true })
+        .on('click', function () { select(l); });
+    });
+    aplicarFiltro();
+    if (origem) {
+      $('navT').textContent = stand ? 'Chegar ao stand de vendas' : 'Chegar à portaria';
+      // Só o ponto de partida vai para o Google Maps/Waze; o lote é mostrado aqui mesmo.
+      $('aG').href = 'https://www.google.com/maps/dir/?api=1&destination=' + origem[0] + ',' + origem[1];
+      $('aW').href = 'https://waze.com/ul?ll=' + origem[0] + ',' + origem[1] + '&navigate=yes';
+    }
+    idle();
+    enquadrar();
+  }
+
+  // ---------- MAPA ----------
+  function initMap() {
+    map = L.map('map', { maxZoom: 20, zoomAnimation: !calm, fadeAnimation: !calm, markerZoomAnimation: !calm });
+    sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 20, attribution: 'Imagens &copy; Esri, Maxar, Earthstar Geographics' }).addTo(map);
+    carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxNativeZoom: 20, maxZoom: 20, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' });
+    $('btnLayer').onclick = function () {
+      if (usingSat) { map.removeLayer(sat); carto.addTo(map); this.textContent = 'Ver satélite'; }
+      else { map.removeLayer(carto); sat.addTo(map); this.textContent = 'Ver mapa'; }
+      usingSat = !usingSat;
+    };
+    map.on('zoomend', rotulos);
+  }
+  function rotulos() { map.getContainer().classList.toggle('labels', map.getZoom() >= 19); }
+  function ponto(p, cls, txt) {
+    L.marker(p, { icon: L.divIcon({ className: 'pt ' + cls, html: '<i></i><span>' + txt + '</span>', iconSize: [30, 30], iconAnchor: [15, 15] }), interactive: false, keyboard: false, zIndexOffset: 500 }).addTo(map);
+  }
+  function icone(l, on) {
+    return L.divIcon({ className: 'lt ' + l.status + (on ? ' sel' : ''), html: '<i></i><span>' + esc(l.quadra + '-' + l.lote) + '</span>', iconSize: [30, 30], iconAnchor: [15, 15] });
+  }
+  function enquadrar() {
+    var pts = lotes.map(function (l) { return [l.lat, l.lng]; });
+    if (stand) pts.push(stand);
+    if (portaria) pts.push(portaria);
+    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [30, 60], paddingBottomRight: [30, 50], maxZoom: 19, animate: false });
+    else map.setView(pts[0] || [-5.795, -35.209], pts.length ? 18 : 12, { animate: false });
+    rotulos();
+    setTimeout(function () { map.invalidateSize(); }, 50);
+  }
+
+  // ---------- RESUMO E FILTRO ----------
+  function resumo() {
+    var n = { disponivel: 0, reservado: 0, vendido: 0 }, t = lotes.length;
+    lotes.forEach(function (l) { n[l.status]++; });
+    $('resumo').textContent = !t ? 'Nenhum lote cadastrado ainda'
+      : n.disponivel + (n.disponivel === 1 ? ' disponível' : ' disponíveis') + ' de ' + t + (t === 1 ? ' lote' : ' lotes');
+    $('nDisp').textContent = n.disponivel; $('nRes').textContent = n.reservado; $('nVend').textContent = n.vendido;
+  }
+  function aplicarFiltro() {
+    var algum = false;
+    lotes.forEach(function (l) {
+      var show = filtro === 'todos' || l.status === 'disponivel';
+      if (show) algum = true;
+      if (show && !map.hasLayer(l.marker)) l.marker.addTo(map);
+      if (!show && map.hasLayer(l.marker)) map.removeLayer(l.marker);
+    });
+    $('fTodos').setAttribute('aria-pressed', String(filtro === 'todos'));
+    $('fDisp').setAttribute('aria-pressed', String(filtro !== 'todos'));
+    $('idleHint').textContent = !lotes.length ? 'Ainda não há lotes neste mapa.'
+      : !algum ? 'Nenhum lote disponível no momento. Toque em "Todos" para ver os reservados e vendidos.'
+      : 'Toque num lote para ver área, preço e o caminho até ele.';
+    if (sel && !map.hasLayer(sel.marker)) fechar();
+  }
+  $('fTodos').onclick = function () { filtro = 'todos'; aplicarFiltro(); };
+  $('fDisp').onclick = function () { filtro = 'disponiveis'; aplicarFiltro(); };
+
+  // ---------- CARD DO LOTE ----------
+  function select(l) {
+    if (sel === l) return;
+    limparRota();
+    if (sel) marcar(sel, false);
+    sel = l; marcar(l, true);
+    var vendido = l.status === 'vendido';
+    $('cTitle').textContent = nome(l);
+    $('cBadge').className = 'badge ' + l.status;
+    $('cDot').className = 'dot ' + l.status;
+    $('cStatus').textContent = NOMES[l.status];
+    $('cAreaBox').hidden = l.area == null;
+    $('cArea').textContent = l.area != null ? fmtNum(l.area) + ' m²' : '';
+    $('cPrecoBox').hidden = vendido;
+    $('cPreco').textContent = l.preco != null ? brl.format(l.preco) : 'Consulte';
+    $('cFacts').hidden = $('cAreaBox').hidden && $('cPrecoBox').hidden;
+    $('cNote').hidden = l.status === 'disponivel';
+    $('cNote').textContent = vendido ? 'Este lote já foi vendido.' : 'Este lote está reservado. Fale com o corretor para saber se ainda pode ser negociado.';
+    $('btnRota').hidden = vendido;
+    $('idle').hidden = true; $('card').hidden = false; nav(false);
+    try { $('cTitle').focus({ preventScroll: true }); } catch (e) {}
+    if (!map.getBounds().pad(-0.1).contains([l.lat, l.lng])) map.panTo([l.lat, l.lng], { animate: !calm });
+  }
+  function marcar(l, on) { l.marker.setIcon(icone(l, on)); l.marker.setZIndexOffset(on ? 1000 : 0); }
+  function fechar() {
+    limparRota();
+    if (sel) marcar(sel, false);
+    sel = null; idle();
+  }
+  function idle() { $('card').hidden = true; $('idle').hidden = false; nav(!!origem); }
+  function nav(show, destaque) {
+    $('navBox').hidden = !show || !origem;
+    $('aG').classList.toggle('hl', !!destaque); $('aW').classList.toggle('hl', !!destaque);
+  }
+  $('cClose').onclick = fechar;
+
+  // ---------- CAMINHO ATÉ O LOTE ----------
+  $('btnRota').onclick = function () { if (sel) mostrarRota(sel); };
+  function mostrarRota(l) {
+    limparRota();
+    var to = [l.lat, l.lng];
+    $('btnRota').hidden = true; $('rota').hidden = false;
+    $('cFacts').hidden = true; $('cNote').hidden = true;
+    if (!origem) { semRota('O stand de vendas e a portaria ainda não foram marcados neste mapa. Use o mapa para se orientar.'); return; }
+    var rt = graph ? Rotas.route(graph, origem, to) : null;
+    if (!rt || rt.endGap >= 80) {
+      semRota('Ainda não há caminho mapeado até este lote. Use o mapa para se orientar.');
+      map.setView(to, Math.max(map.getZoom(), 18), { animate: !calm });
+      return;
+    }
+    path = [origem].concat(rt.path, [to]);
+    routeLayer = L.layerGroup().addTo(map);
+    var ponta = { color: '#1a73e8', weight: 4, dashArray: '4 7', interactive: false };
+    L.polyline([origem, rt.path[0]], ponta).addTo(routeLayer);
+    L.polyline(rt.path, { color: '#fff', weight: 10, opacity: 0.95, interactive: false }).addTo(routeLayer);
+    L.polyline(rt.path, { color: '#1a73e8', weight: 6, interactive: false }).addTo(routeLayer);
+    L.polyline([rt.path[rt.path.length - 1], to], ponta).addTo(routeLayer);
+    if (!osmCredit) { map.attributionControl.addAttribution('Ruas &copy; OpenStreetMap contributors'); osmCredit = true; }
+    $('rDist').hidden = false;
+    $('rDist').textContent = fmt(rt.length + rt.startGap + rt.endGap) + ' até o lote, saindo ' + (stand ? 'do stand de vendas' : 'da portaria');
+    $('rInfo').textContent = 'Siga a linha azul.';
+    fitted = false;
+    map.fitBounds(L.latLngBounds(path), { paddingTopLeft: [40, 70], paddingBottomRight: [40, 60], maxZoom: 19, animate: !calm });
+    gpsOferecer();
+    if (lastPos && watchId != null) onPos(lastPos);
+  }
+  function semRota(t) { $('rDist').hidden = true; $('rInfo').textContent = t; $('gpsBtn').hidden = true; }
+  function limparRota() {
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    path = null;
+    if (meLine) meLine.setLatLngs([]);
+    $('rota').hidden = true; $('arrived').hidden = true;
+    if (sel) {
+      $('btnRota').hidden = sel.status === 'vendido';
+      $('cFacts').hidden = $('cAreaBox').hidden && $('cPrecoBox').hidden;
+      $('cNote').hidden = sel.status === 'disponivel';
+      nav(false);
+    }
+  }
+
+  // ---------- GPS (mesmo tratamento de permissão do entregador.html) ----------
+  var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  function gpsOferecer() {
+    if (watchId != null) return;
+    $('gpsBtn').textContent = 'Usar minha localização';
+    $('gpsBtn').hidden = false;
+    // Quem já permitiu a localização antes não precisa tocar de novo
+    try {
+      if (navigator.permissions) navigator.permissions.query({ name: 'geolocation' })
+        .then(function (s) { if (s.state === 'granted' && watchId == null && path) startGps(); }, function () {});
+    } catch (e) {}
+  }
+  // Chamado direto pelo toque no botão: no iPhone, o pedido "Permitir?" precisa vir de um toque.
+  function startGps() {
+    if (!navigator.geolocation) {
+      $('rInfo').textContent = 'Este celular não informa a localização. Use o mapa para se orientar.';
+      $('gpsBtn').hidden = true;
+      return;
+    }
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    $('gpsBtn').hidden = true;
+    $('rInfo').textContent = 'Buscando sua localização...';
+    watchId = navigator.geolocation.watchPosition(onPos, onGpsErr, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  }
+  function onGpsErr(e) {
+    if (e && e.code === 1) {
+      if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      $('gpsBtn').textContent = 'Tentar de novo';
+      $('rInfo').innerHTML = isIOS
+        ? 'A localização está bloqueada para este site. Toque em <b>aA</b> (ou no ícone à esquerda do endereço) &gt; <b>Ajustes do Site</b> &gt; <b>Localização: Permitir</b>. Se não aparecer, vá em <b>Ajustes &gt; Privacidade &gt; Serviços de Localização &gt; Sites do Safari &gt; Durante o Uso</b>.'
+        : 'A localização está bloqueada para este site. Toque no cadeado ao lado do endereço do site &gt; <b>Permissões</b> &gt; <b>Localização: Permitir</b>, e ative o GPS do celular. Depois toque abaixo.';
+      $('gpsBtn').hidden = !path;
+    } else {
+      $('rInfo').textContent = 'Sinal de GPS fraco. Continuando a procurar...';
+    }
+  }
+  $('gpsBtn').onclick = startGps;
+
+  function onPos(p) {
+    lastPos = p;
+    var me = [p.coords.latitude, p.coords.longitude], acc = p.coords.accuracy || 0;
+    if (!meMarker) {
+      meMarker = L.marker(me, { icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, keyboard: false, zIndexOffset: 2000 }).addTo(map);
+      meCircle = L.circle(me, { radius: acc, color: '#1a73e8', weight: 1, fillOpacity: 0.08, interactive: false }).addTo(map);
+      meLine = L.polyline([], { color: '#fff', weight: 3, dashArray: '6 8', opacity: 0.9, interactive: false }).addTo(map);
+    } else {
+      meMarker.setLatLng(me); meCircle.setLatLng(me).setRadius(acc);
+    }
+    if (!path || !sel) { meLine.setLatLngs([]); return; }
+    var pr = Rotas.progress(path, me), longe = Rotas.dist(me, origem);
+    // Longe do loteamento: quem leva até o stand/portaria é o Google Maps ou o Waze
+    if (longe > 250 && pr.gap > 150) {
+      meLine.setLatLngs([]);
+      $('rDist').textContent = 'Você está a ' + fmt(longe) + (stand ? ' do stand de vendas' : ' da portaria');
+      $('rInfo').textContent = 'Primeiro vá até ' + (stand ? 'o stand de vendas' : 'a portaria') + ' pelo Google Maps ou pelo Waze (botões abaixo). Ao chegar, siga a linha azul.';
+      $('arrived').hidden = true; nav(true, true);
+      return;
+    }
+    nav(false);
+    meLine.setLatLngs(pr.gap > Math.max(10, acc) ? [me, pr.pt] : []);
+    $('rDist').textContent = 'Faltam ' + fmt(pr.remaining + pr.gap);
+    $('rInfo').textContent = pr.gap > 40 ? 'Vá até a linha azul e siga por ela até o lote.' : 'Siga a linha azul até o lote. Precisão do GPS: ~' + Math.round(acc) + ' m';
+    var direto = Rotas.dist(me, [sel.lat, sel.lng]);
+    $('arrived').hidden = direto >= Math.max(15, acc);
+    if (!fitted && direto < 3000) {
+      map.fitBounds(L.latLngBounds(path.concat([me])), { paddingTopLeft: [50, 70], paddingBottomRight: [50, 60], maxZoom: 19, animate: !calm }); fitted = true;
+    }
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
