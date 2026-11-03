@@ -49,7 +49,7 @@
 
   .pwrap { max-width: 980px; margin: 0 auto; padding: 18px; display: flex; gap: 24px; flex-wrap: wrap; }
   .pcol { flex: 1 1 340px; }
-  #vPortaria, #vTotem { overflow-y: auto; }
+  #vPortaria, #vTotem, #vVendas { overflow-y: auto; }
   #pSearch { font-size: 18px; padding: 12px; }
   #pList { margin-top: 10px; max-height: 65vh; overflow-y: auto; }
   #pList .item { font-size: 16px; padding: 12px; border: 1px solid #eee; margin-bottom: 6px; }
@@ -59,7 +59,7 @@
   #pCode { font-size: 64px; font-weight: 800; letter-spacing: 10px; margin: 14px 0 4px; color: #0f6e56; font-variant-numeric: tabular-nums; }
   #pTimer { font-size: 14px; color: #666; }
   .big { font-size: 16px; padding: 12px 16px; }
-  #qrDirect, #qrTotem { display: inline-block; margin: 14px 0 8px; padding: 10px; background: #fff; }
+  #qrDirect, #qrTotem, #qrVendas { display: inline-block; margin: 14px 0 8px; padding: 10px; background: #fff; }
 
   .totem { max-width: 520px; margin: 24px auto; text-align: center; border: 2px solid #0f6e56; border-radius: 16px; padding: 28px; }
   .totem h2 { font-size: 28px; margin: 0 0 6px; }
@@ -72,7 +72,19 @@
   #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #222; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 13px; display: none; z-index: 3000; max-width: 90vw; }
   .pin-label { background: #fff; border: 1px solid #0f6e56; color: #0f6e56; font-weight: 600; font-size: 11px; padding: 1px 5px; border-radius: 4px; white-space: nowrap; box-shadow: none; }
   .pin-label.portaria { border-color: #d85a30; color: #993c1d; }
+  .pin-label.reservado { border-color: #b38600; color: #6b4e00; }
+  .pin-label.vendido { border-color: #6b7177; color: #4a5056; }
+  .pin-label.stand { border-color: #4b2a99; color: #4b2a99; }
   .leaflet-tooltip.pin-label::before { display: none; }
+  .tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 11px; font-weight: 600; vertical-align: 1px; }
+  .tag.reservado { background: #fdf3d3; color: #6b4e00; }
+  .tag.vendido { background: #eceeef; color: #4a5056; }
+  .switch { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 16px; font-weight: 600; color: #1f2328; cursor: pointer; }
+  .switch input { width: 22px; height: 22px; margin: 0; padding: 0; accent-color: #0f6e56; }
+  .vbox { border: 1px solid #e3e3e3; border-radius: 10px; padding: 12px 14px; margin-top: 14px; font-size: 14px; line-height: 1.6; }
+  .st { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; }
+  .st.disponivel { background: #1d9e75; } .st.reservado { background: #f2b200; } .st.vendido { background: #9aa0a6; }
+  .mgroup { margin: 14px 0 8px; padding-top: 10px; border-top: 1px solid #eee; font-size: 12px; font-weight: 600; color: #0f6e56; }
   .popup a { display: inline-block; margin: 4px 6px 0 0; }
   .err { color: #a32d2d; font-size: 13px; margin-top: 8px; min-height: 16px; }
 
@@ -115,6 +127,7 @@
       <button data-view="vMapa" class="active">Mapear</button>
       <button data-view="vPortaria">Portaria</button>
       <button data-view="vTotem">QR do totem</button>
+      <button data-view="vVendas">Vendas</button>
     </div>
     <div class="spacer"></div>
     <button id="btnLogout">Sair</button>
@@ -130,7 +143,7 @@
           <div class="row" style="margin-top:6px"><button id="btnLocate">Minha localização</button><button id="btnLayer">Ver mapa de ruas</button></div>
         </div>
         <div class="sec">
-          <div class="row"><button id="btnModeLote" class="active">Lotes</button><button id="btnModePortaria">Portaria</button><button id="btnModeRuas">Ruas</button></div>
+          <div class="row"><button id="btnModeLote" class="active">Lotes</button><button id="btnModePortaria">Portaria</button><button id="btnModeStand">Stand</button><button id="btnModeRuas">Ruas</button></div>
           <div class="hint" id="modeHint">Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.</div>
           <div id="ruasBox" style="display:none;margin-top:8px">
             <button id="btnOsm" style="width:100%">Importar ruas do OpenStreetMap</button>
@@ -201,6 +214,38 @@
         <button id="btnPrint" class="primary big">Imprimir placa</button>
       </div>
     </div>
+
+    <!-- VENDAS -->
+    <div id="vVendas" class="view">
+      <div class="pwrap">
+        <div class="pcol noprint">
+          <h2 style="font-size:20px;margin:6px 0 14px">Mapa de vendas</h2>
+          <label class="switch"><input type="checkbox" id="vOn"> Modo vendas (mapa público)</label>
+          <div class="hint" id="vOnHint"></div>
+          <div class="vbox">
+            <div id="vStand"></div>
+            <button id="btnVStand" style="margin-top:10px">Marcar stand no mapa</button>
+          </div>
+          <div class="vbox" id="vResumo"></div>
+        </div>
+        <div class="pcol">
+          <div class="totem">
+            <h2>Lotes à venda</h2>
+            <p id="vNome" style="font-weight:700"></p>
+            <p>Aponte a câmera do celular para ver os lotes disponíveis e o caminho até cada um.</p>
+            <div id="qrVendas"></div>
+          </div>
+          <div class="noprint" style="text-align:center;margin-bottom:30px">
+            <div class="hint" id="vLink" style="word-break:break-all;max-width:520px;margin:0 auto 10px"></div>
+            <div class="row" style="max-width:420px;margin:0 auto">
+              <button id="btnVCopy">Copiar link</button>
+              <button id="btnVOpen">Abrir</button>
+              <button id="btnVPrint" class="primary">Imprimir</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -213,6 +258,14 @@
       <div><label for="mLote">Lote / casa</label><input id="mLote" placeholder="Ex.: 12"></div>
     </div>
     <div class="f"><label for="mObs">Observação (opcional)</label><input id="mObs" placeholder="Ex.: portão azul"></div>
+    <div class="mgroup">Mapa de vendas</div>
+    <div class="f"><label for="mStatus">Situação</label>
+      <select id="mStatus"><option value="disponivel">Disponível</option><option value="reservado">Reservado</option><option value="vendido">Vendido</option></select></div>
+    <div class="row f">
+      <div><label for="mArea">Área (m²)</label><input id="mArea" inputmode="decimal" placeholder="Ex.: 360"></div>
+      <div><label for="mPreco">Preço (R$)</label><input id="mPreco" inputmode="decimal" placeholder="Ex.: 250.000"></div>
+    </div>
+    <div class="hint">A observação nunca aparece no mapa de vendas, nem o preço de lote vendido.</div>
     <div class="hint" id="mCoords"></div>
     <div class="row" style="margin-top:12px">
       <button id="mCancel">Cancelar</button>
@@ -258,13 +311,29 @@
     if (window.QRCode) new QRCode(el, { text: text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
     else el.textContent = 'Gerador de QR indisponível';
   }
+  // Situação de venda do lote: cor da borda e do preenchimento do pino
+  var STATUS_NOME = { disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Vendido' };
+  var STATUS_PLURAL = { disponivel: 'disponíveis', reservado: 'reservados', vendido: 'vendidos' };
+  var COR = { disponivel: ['#085041', '#1d9e75'], reservado: ['#8a6400', '#f2b200'], vendido: ['#5f6368', '#9aa0a6'] };
+  function statusDe(l) { return STATUS_NOME[l.status] ? l.status : 'disponivel'; }
+  // Aceita número do jeito brasileiro: 250.000,50 / 250000 / R$ 250.000 / 360,5
+  function parseNum(s) {
+    s = String(s == null ? '' : s).replace(/R\$|\s/gi, '');
+    if (!s) return null;
+    if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+    var n = Number(s);
+    return isFinite(n) && n >= 0 ? n : NaN;
+  }
+  function fmtNum(n) { return n == null ? '' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 }); }
+  function brl(n) { return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
   var cfg = window.APP_CONFIG || {};
   if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.indexOf('SEU-PROJETO') >= 0 || !cfg.SUPABASE_ANON_KEY || cfg.SUPABASE_ANON_KEY.indexOf('COLE_') === 0) { show('noconfig'); return; }
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
   var condos = [], condo = null, lotes = [];
-  var map = null, markers = {}, portariaMarker = null, mode = 'lote', justDragged = 0;
+  var map = null, markers = {}, portariaMarker = null, standMarker = null, mode = 'lote', justDragged = 0;
   var editing = null, pendingLatLng = null, lastQuadra = '';
 
   // ---------- LOGIN ----------
@@ -292,6 +361,7 @@
     if (id === 'vMapa' && map) setTimeout(function () { map.invalidateSize(); }, 50);
     if (id === 'vPortaria') { renderPortaria(); setTimeout(function () { $('pSearch').focus(); }, 30); }
     if (id === 'vTotem') renderTotem();
+    if (id === 'vVendas') renderVendas();
   }
   document.querySelectorAll('.tabs button').forEach(function (b) { b.onclick = function () { setView(b.getAttribute('data-view')); }; });
 
@@ -320,7 +390,7 @@
     cancelDraw(); clearTest();
     redrawAll();
     if (fit) fitAll();
-    pSelId = null; clearCode(); renderPortaria(); renderTotem();
+    pSelId = null; clearCode(); renderPortaria(); renderTotem(); renderVendas();
   }
 
   function openCondoModal() { $('cNome').value = ''; $('condoBg').style.display = 'flex'; setTimeout(function () { $('cNome').focus(); }, 30); }
@@ -358,6 +428,10 @@
       if (t) t.onclick = function (ev) { ev.preventDefault(); var l = lotes.find(function (x) { return x.id === t.getAttribute('data-route'); }); map.closePopup(); if (l) testRoute(l); };
       var dr = e.popup.getElement().querySelector('[data-delrua]');
       if (dr) dr.onclick = function (ev) { ev.preventDefault(); map.closePopup(); deleteRua(dr.getAttribute('data-delrua')); };
+      var ts = e.popup.getElement().querySelector('[data-routestand]');
+      if (ts) ts.onclick = function (ev) { ev.preventDefault(); var l = lotes.find(function (x) { return x.id === ts.getAttribute('data-routestand'); }); map.closePopup(); if (l) testRoute(l, true); };
+      var ds = e.popup.getElement().querySelector('[data-delstand]');
+      if (ds) ds.onclick = function (ev) { ev.preventDefault(); map.closePopup(); deleteStand(); };
     });
   }
 
@@ -366,14 +440,17 @@
     if (m !== 'ruas') cancelDraw();
     $('btnModeLote').classList.toggle('active', m === 'lote');
     $('btnModePortaria').classList.toggle('active', m === 'portaria');
+    $('btnModeStand').classList.toggle('active', m === 'stand');
     $('btnModeRuas').classList.toggle('active', m === 'ruas');
     $('ruasBox').style.display = m === 'ruas' ? 'block' : 'none';
     $('modeHint').textContent = m === 'lote' ? 'Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.'
       : m === 'portaria' ? 'Clique no ponto exato da portaria.'
+      : m === 'stand' ? 'Clique no ponto do stand de vendas. As rotas do mapa de vendas saem dele (sem stand, saem da portaria).'
       : 'Primeiro importe do OpenStreetMap. Onde faltar rua, clique ponto a ponto pelo meio da rua e depois em "Concluir rua". Comece e termine em cima de outra rua (linha amarela) para ligá-las. Clique numa rua para excluí-la.';
   }
   $('btnModeLote').onclick = function () { setMode('lote'); };
   $('btnModePortaria').onclick = function () { setMode('portaria'); };
+  $('btnModeStand').onclick = function () { setMode('stand'); };
   $('btnModeRuas').onclick = function () { setMode('ruas'); };
 
   async function onMapClick(e) {
@@ -386,6 +463,12 @@
       condo.portaria_lat = lat; condo.portaria_lng = lng;
       drawPortaria(); renderCount(); setMode('lote'); toast('Portaria marcada');
       if (!ruas.length) setTimeout(function () { importOsm(true); }, 800);
+    } else if (mode === 'stand') {
+      var slat = r6(e.latlng.lat), slng = r6(e.latlng.lng);
+      var rs = await db.from('condominios').update({ stand_lat: slat, stand_lng: slng }).eq('id', condo.id);
+      if (rs.error) { toast('Erro: ' + rs.error.message); return; }
+      condo.stand_lat = slat; condo.stand_lng = slng;
+      drawStand(); renderCount(); renderVendas(); setMode('lote'); toast('Stand de vendas marcado');
     } else if (mode === 'ruas') addVertex([e.latlng.lat, e.latlng.lng]);
     else openModal(null, e.latlng);
   }
@@ -397,17 +480,41 @@
       .addTo(map).bindTooltip('Portaria', { permanent: true, direction: 'top', offset: [0, -8], className: 'pin-label portaria' });
   }
 
+  function drawStand() {
+    if (standMarker) { map.removeLayer(standMarker); standMarker = null; }
+    if (!condo || condo.stand_lat == null) return;
+    standMarker = L.circleMarker([condo.stand_lat, condo.stand_lng], { radius: 9, color: '#4b2a99', fillColor: '#6b46c1', fillOpacity: 0.9, weight: 2, bubblingMouseEvents: false })
+      .addTo(map).bindTooltip('Stand de vendas', { permanent: true, direction: 'top', offset: [0, -8], className: 'pin-label stand' })
+      .bindPopup('<div class="popup"><b>Stand de vendas</b><br>As rotas do mapa de vendas saem daqui.<br><a href="#" data-delstand="1">Remover stand</a></div>');
+  }
+  async function deleteStand() {
+    var r = await db.from('condominios').update({ stand_lat: null, stand_lng: null }).eq('id', condo.id);
+    if (r.error) { toast('Erro: ' + r.error.message); return; }
+    condo.stand_lat = null; condo.stand_lng = null;
+    drawStand(); renderCount(); renderVendas(); toast('Stand removido: as rotas do mapa de vendas saem da portaria');
+  }
+
   function popupHtml(l) {
+    var s = statusDe(l), venda = [];
+    if ((condo && condo.em_vendas) || s !== 'disponivel' || l.area_m2 != null || l.preco != null) {
+      venda.push(STATUS_NOME[s]);
+      if (l.area_m2 != null) venda.push(fmtNum(l.area_m2) + ' m²');
+      if (l.preco != null) venda.push(brl(l.preco));
+    }
     return '<div class="popup"><b>' + esc(nome(l)) + '</b>' + (l.obs ? '<br>' + esc(l.obs) : '') +
+      (venda.length ? '<br>' + esc(venda.join(' · ')) : '') +
       '<br><small>' + l.lat + ', ' + l.lng + '</small><br>' +
       '<a href="#" data-route="' + l.id + '">Testar caminho</a>' +
+      (condo && condo.stand_lat != null ? '<a href="#" data-routestand="' + l.id + '">Testar do stand</a>' : '') +
       '<a href="#" data-edit="' + l.id + '">Editar</a></div>';
   }
 
   function drawLote(l) {
     if (markers[l.id]) map.removeLayer(markers[l.id]);
-    var m = L.circleMarker([l.lat, l.lng], { radius: 6, color: '#085041', fillColor: '#1d9e75', fillOpacity: 0.9, weight: 2, bubblingMouseEvents: false });
-    m.addTo(map).bindTooltip(l.quadra + '-' + l.lote, { permanent: true, direction: 'top', offset: [0, -6], className: 'pin-label' }).bindPopup(popupHtml(l));
+    var s = statusDe(l), c = COR[s];
+    var m = L.circleMarker([l.lat, l.lng], { radius: 6, color: c[0], fillColor: c[1], fillOpacity: 0.9, weight: 2, bubblingMouseEvents: false });
+    m.addTo(map).bindTooltip(l.quadra + '-' + l.lote, { permanent: true, direction: 'top', offset: [0, -6], className: 'pin-label' + (s !== 'disponivel' ? ' ' + s : '') })
+      .bindPopup(function () { return popupHtml(l); });
     m.on('mousedown', function (e) {
       if (e.originalEvent && e.originalEvent.button === 2) return;
       var moved = false; map.dragging.disable();
@@ -419,7 +526,7 @@
         var ll = m.getLatLng(), lat = r6(ll.lat), lng = r6(ll.lng);
         var r = await db.from('lotes').update({ lat: lat, lng: lng }).eq('id', l.id);
         if (r.error) { toast('Erro ao mover: ' + r.error.message); m.setLatLng([l.lat, l.lng]); return; }
-        l.lat = lat; l.lng = lng; m.setPopupContent(popupHtml(l)); renderList(); toast('Posição ajustada');
+        l.lat = lat; l.lng = lng; renderList(); toast('Posição ajustada');
       }
       map.on('mousemove', move); map.on('mouseup', up); m.on('mouseup', up);
     });
@@ -429,13 +536,16 @@
   function renderCount() {
     var n = lotes.length;
     $('count').textContent = !condo ? 'Nenhum condomínio selecionado' :
-      n + (n === 1 ? ' lote' : ' lotes') + ' · ' + ruas.length + (ruas.length === 1 ? ' rua' : ' ruas') + ' · ' + (condo.portaria_lat != null ? 'portaria marcada' : 'portaria não marcada');
+      n + (n === 1 ? ' lote' : ' lotes') + ' · ' + ruas.length + (ruas.length === 1 ? ' rua' : ' ruas') + ' · ' + (condo.portaria_lat != null ? 'portaria marcada' : 'portaria não marcada') +
+      (condo.stand_lat != null ? ' · stand marcado' : '');
   }
   function renderList() {
     var list = $('list'); list.innerHTML = '';
     lotes.slice().sort(sortLotes).forEach(function (l) {
       var d = document.createElement('div'); d.className = 'item';
-      d.innerHTML = '<div>' + esc(nome(l)) + '<small>' + esc(l.obs || '') + '</small></div><span>›</span>';
+      var s = statusDe(l);
+      d.innerHTML = '<div>' + esc(nome(l)) + (s !== 'disponivel' ? '<span class="tag ' + s + '">' + STATUS_NOME[s] + '</span>' : '') +
+        '<small>' + esc(l.obs || '') + '</small></div><span>›</span>';
       d.onclick = function () { map.setView([l.lat, l.lng], Math.max(map.getZoom(), 19)); markers[l.id].openPopup(); };
       list.appendChild(d);
     });
@@ -443,7 +553,7 @@
   }
   function redrawAll() {
     Object.keys(markers).forEach(function (k) { map.removeLayer(markers[k]); }); markers = {};
-    drawRuas(); lotes.forEach(drawLote); drawPortaria(); renderList();
+    drawRuas(); lotes.forEach(drawLote); drawPortaria(); drawStand(); renderList();
   }
 
   // ---------- RUAS ----------
@@ -587,12 +697,19 @@
     rd.readAsText(f);
   };
   function clearTest() { if (testLayer) { map.removeLayer(testLayer); testLayer = null; } }
-  function testRoute(l) {
+  function testRoute(l, doStand) {
     clearTest();
-    if (!condo || condo.portaria_lat == null) { toast('Marque a portaria primeiro'); return; }
-    var from = [condo.portaria_lat, condo.portaria_lng], to = [l.lat, l.lng];
+    var from;
+    if (doStand) {
+      if (!condo || condo.stand_lat == null) { toast('Marque o stand primeiro'); return; }
+      from = [condo.stand_lat, condo.stand_lng];
+    } else {
+      if (!condo || condo.portaria_lat == null) { toast('Marque a portaria primeiro'); return; }
+      from = [condo.portaria_lat, condo.portaria_lng];
+    }
+    var to = [l.lat, l.lng];
     var rt = Rotas.route(ruasGraph, from, to);
-    if (!rt) { toast(ruas.length ? 'Sem caminho: as ruas entre a portaria e esta casa não estão ligadas.' : 'Nenhuma rua mapeada ainda (aba Ruas).'); return; }
+    if (!rt) { toast(ruas.length ? 'Sem caminho: as ruas entre ' + (doStand ? 'o stand e este lote' : 'a portaria e esta casa') + ' não estão ligadas.' : 'Nenhuma rua mapeada ainda (aba Ruas).'); return; }
     testLayer = L.layerGroup().addTo(map);
     L.polyline([from, rt.path[0]], { color: '#1a73e8', weight: 3, dashArray: '4 6' }).addTo(testLayer);
     L.polyline(rt.path, { color: '#fff', weight: 9, opacity: 0.9 }).addTo(testLayer);
@@ -605,6 +722,7 @@
   function fitAll() {
     var pts = lotes.map(function (l) { return [l.lat, l.lng]; });
     if (condo && condo.portaria_lat != null) pts.push([condo.portaria_lat, condo.portaria_lng]);
+    if (condo && condo.stand_lat != null) pts.push([condo.stand_lat, condo.stand_lng]);
     if (pts.length === 1) map.setView(pts[0], 18); else if (pts.length) map.fitBounds(pts, { padding: [40, 40] });
   }
 
@@ -614,6 +732,9 @@
     $('mQuadra').value = l ? l.quadra : lastQuadra;
     $('mLote').value = l ? l.lote : '';
     $('mObs').value = l ? (l.obs || '') : '';
+    $('mStatus').value = l ? statusDe(l) : 'disponivel';
+    $('mArea').value = l && l.area_m2 != null ? fmtNum(l.area_m2) : '';
+    $('mPreco').value = l && l.preco != null ? fmtNum(l.preco) : '';
     var ll = l ? l : latlng;
     $('mCoords').textContent = 'Coordenada: ' + r6(ll.lat) + ', ' + r6(ll.lng);
     $('mDelete').style.display = l ? 'block' : 'none';
@@ -631,10 +752,14 @@
   $('mSave').onclick = async function () {
     var q = $('mQuadra').value.trim(), lo = $('mLote').value.trim(), obs = $('mObs').value.trim();
     if (!q || !lo) { toast('Preencha quadra e lote'); return; }
+    var area = parseNum($('mArea').value), preco = parseNum($('mPreco').value);
+    if (Number.isNaN(area)) { toast('Área inválida. Use só números, por exemplo 360 ou 360,5'); return; }
+    if (Number.isNaN(preco)) { toast('Preço inválido. Use só números, por exemplo 250000 ou 250.000,00'); return; }
+    var dados = { quadra: q, lote: lo, obs: obs || null, status: $('mStatus').value, area_m2: area, preco: preco };
     this.disabled = true;
     var r;
-    if (editing) r = await db.from('lotes').update({ quadra: q, lote: lo, obs: obs || null }).eq('id', editing.id).select().single();
-    else r = await db.from('lotes').insert({ condominio_id: condo.id, quadra: q, lote: lo, obs: obs || null, lat: r6(pendingLatLng.lat), lng: r6(pendingLatLng.lng) }).select().single();
+    if (editing) r = await db.from('lotes').update(dados).eq('id', editing.id).select().single();
+    else r = await db.from('lotes').insert(Object.assign({ condominio_id: condo.id, lat: r6(pendingLatLng.lat), lng: r6(pendingLatLng.lng) }, dados)).select().single();
     this.disabled = false;
     if (r.error) { toast(r.error.code === '23505' ? 'Já existe Quadra ' + q + ', Lote ' + lo : 'Erro: ' + r.error.message); return; }
     if (editing) { var i = lotes.findIndex(function (x) { return x.id === r.data.id; }); lotes[i] = r.data; } else lotes.push(r.data);
@@ -748,9 +873,9 @@
   function drawDirect() { if (currentCode) qr($('qrDirect'), entregadorUrl() + '&k=' + currentCode, 200); }
 
   // ---------- TOTEM ----------
+  function baseUrl() { return location.href.split('#')[0].split('?')[0].replace(/[^\/]*$/, ''); }
   function entregadorUrl() {
-    var base = location.href.split('#')[0].split('?')[0].replace(/[^\/]*$/, '');
-    return base + 'entregador.html?c=' + encodeURIComponent(condo.slug);
+    return baseUrl() + 'entregador.html?c=' + encodeURIComponent(condo.slug);
   }
   function renderTotem() {
     if (!condo) { $('qrTotem').innerHTML = ''; $('tLink').textContent = 'Crie um condomínio primeiro.'; return; }
@@ -760,6 +885,57 @@
     $('tLink').innerHTML = 'Link da placa: <a href="' + u + '" target="_blank" rel="noopener">' + esc(u) + '</a>';
   }
   $('btnPrint').onclick = function () { window.print(); };
+
+  // ---------- VENDAS ----------
+  function vendasUrl() { return baseUrl() + 'vendas.html?c=' + encodeURIComponent(condo.slug); }
+  function renderVendas() {
+    ['vOn', 'btnVStand', 'btnVCopy', 'btnVOpen', 'btnVPrint'].forEach(function (id) { $(id).disabled = !condo; });
+    if (!condo) {
+      $('vOn').checked = false; $('vOnHint').textContent = 'Crie um condomínio primeiro.';
+      $('vStand').textContent = ''; $('vResumo').textContent = ''; $('vNome').textContent = ''; $('qrVendas').innerHTML = ''; $('vLink').textContent = '';
+      return;
+    }
+    $('vOn').checked = !!condo.em_vendas;
+    $('vOnHint').textContent = condo.em_vendas
+      ? 'Ligado: quem tiver o link vê os lotes, a situação, a área, o preço e o caminho até cada um. As observações dos lotes e o preço dos vendidos nunca aparecem.'
+      : 'Desligado: quem abrir o link vê só um aviso de mapa indisponível.';
+    $('vStand').innerHTML = condo.stand_lat != null
+      ? '<b>Stand de vendas marcado.</b> As rotas do mapa de vendas saem dele.'
+      : '<b>Stand de vendas não marcado.</b> ' + (condo.portaria_lat != null ? 'As rotas saem da portaria.' : 'Marque o stand ou a portaria para o mapa mostrar rotas.');
+    $('btnVStand').textContent = condo.stand_lat != null ? 'Mudar o stand de lugar' : 'Marcar stand no mapa';
+    var c = { disponivel: 0, reservado: 0, vendido: 0 }, semPreco = 0;
+    lotes.forEach(function (l) { var s = statusDe(l); c[s]++; if (s !== 'vendido' && l.preco == null) semPreco++; });
+    $('vResumo').innerHTML = '<b>' + lotes.length + (lotes.length === 1 ? ' lote' : ' lotes') + '</b><br>' +
+      ['disponivel', 'reservado', 'vendido'].map(function (s) {
+        return '<span class="st ' + s + '"></span>' + c[s] + ' ' + (c[s] === 1 ? STATUS_NOME[s].toLowerCase() : STATUS_PLURAL[s]);
+      }).join('<br>') +
+      (semPreco ? '<div class="hint">' + semPreco + (semPreco === 1 ? ' lote à venda está sem preço e aparece como "Consulte".' : ' lotes à venda estão sem preço e aparecem como "Consulte".') + '</div>' : '');
+    $('vNome').textContent = condo.nome;
+    var u = vendasUrl();
+    qr($('qrVendas'), u, 240);
+    $('vLink').innerHTML = 'Link do mapa de vendas: <a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' +
+      (condo.em_vendas ? '' : '<br><b>O modo vendas está desligado:</b> quem abrir o link vê só um aviso.');
+  }
+  $('vOn').onchange = async function () {
+    if (!condo) return;
+    var box = this, on = box.checked; box.disabled = true;
+    var r = await db.from('condominios').update({ em_vendas: on }).eq('id', condo.id);
+    box.disabled = false;
+    if (r.error) { box.checked = !on; toast('Erro: ' + r.error.message); return; }
+    condo.em_vendas = on; renderVendas();
+    toast(on ? 'Modo vendas ligado: o link já mostra os lotes' : 'Modo vendas desligado: o link mostra só um aviso');
+  };
+  $('btnVStand').onclick = function () {
+    setView('vMapa'); setMode('stand'); map.invalidateSize();
+    if (condo.stand_lat != null) map.setView([condo.stand_lat, condo.stand_lng], Math.max(map.getZoom(), 18));
+    toast('Clique no ponto do stand de vendas');
+  };
+  $('btnVCopy').onclick = async function () {
+    var u = vendasUrl();
+    try { await navigator.clipboard.writeText(u); toast('Link copiado'); } catch (e) { window.prompt('Copie o link do mapa de vendas:', u); }
+  };
+  $('btnVOpen').onclick = function () { window.open(vendasUrl(), '_blank', 'noopener'); };
+  $('btnVPrint').onclick = function () { window.print(); };
 
   var sess = await db.auth.getSession();
   if (sess.data && sess.data.session) startApp(); else show('login');
