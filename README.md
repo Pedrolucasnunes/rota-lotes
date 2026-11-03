@@ -1,18 +1,21 @@
 # Rota Condomínio: como colocar no ar
 
-São 4 arquivos:
+Os arquivos principais:
 
 | Arquivo | Para que serve |
 |---|---|
 | `supabase/setup.sql` | Cria o banco (tabelas, segurança e as funções do código). Rode uma vez. |
+| `supabase/vendas.sql` | Acrescenta o mapa de vendas ao banco. Rode depois do `setup.sql`. |
 | `config.js` | Onde você cola a URL e a chave do Supabase. |
-| `index.html` | Painel: login, mapeamento, tela da portaria e QR do totem. |
+| `index.html` | Painel: login, mapeamento, tela da portaria, QR do totem e mapa de vendas. |
 | `entregador.html` | Página que o entregador abre ao escanear o QR do totem. |
+| `vendas.html` | Mapa de vendas público: corretor e cliente veem os lotes e o caminho até eles. |
+| `rotas.js` | Calcula o caminho pelas ruas internas (usado pelas páginas). |
 
 ## Parte 1: Supabase (uns 10 minutos)
 
 1. Em supabase.com, crie um projeto novo (ex.: `rota-condominio`), região **South America (São Paulo)**.
-2. No menu lateral, abra **SQL Editor**, clique em **New query**, cole todo o conteúdo de `supabase/setup.sql` e clique em **Run**. Deve aparecer "Success".
+2. No menu lateral, abra **SQL Editor**, clique em **New query**, cole todo o conteúdo de `supabase/setup.sql` e clique em **Run**. Deve aparecer "Success". Depois, numa nova query, faça o mesmo com `supabase/vendas.sql`.
 3. Para criar o seu login, vá em **Authentication > Users > Add user > Create new user**. Informe e-mail e senha e marque **Auto Confirm User**.
 4. Para fechar o cadastro público, vá em **Authentication > Sign In / Providers** (ou **Settings**) e desligue **Allow new users to sign up**. Assim só entra quem você criar.
 5. Clique em **Connect** no topo do projeto (ou vá em **Project Settings > API**) e copie:
@@ -36,6 +39,18 @@ São 4 arquivos:
 3. Na aba **Mapear**, busque o bairro, marque a portaria e cadastre os lotes. Para trazer as casas de teste, use **Importar JSON (versão antiga)** com o arquivo que você exportou da primeira versão.
 4. Na aba **QR do totem**, clique em **Imprimir placa**. Esse QR fica fixo na portaria.
 5. Na aba **Portaria**, escolha a casa e clique em **Gerar código**. Escaneie a placa com o celular, digite o código e a rota deve abrir.
+
+## Mapa de vendas (esboço)
+
+Serve para mostrar a corretores e clientes os lotes à venda e o caminho até cada um. Depois que as vendas acabam, o mesmo mapa continua servindo à portaria e aos entregadores.
+
+1. **Banco:** no Supabase, abra **SQL Editor > New query**, cole todo o conteúdo de `supabase/vendas.sql` e clique em **Run**. Rodar de novo não causa problema.
+2. **Ligar o modo vendas:** no painel, escolha o condomínio, abra a aba **Vendas** e marque **Modo vendas (mapa público)**. Desligado, o link mostra só um aviso de mapa indisponível.
+3. **Marcar o stand:** na aba **Mapear**, clique em **Stand** e depois no ponto do stand de vendas. As rotas saem dele; sem stand, saem da portaria. Para conferir, use **Testar do stand** no popup de um lote.
+4. **Preencher os lotes:** clique em cada lote, depois em **Editar**, e escolha a **Situação** (disponível, reservado ou vendido). Preencha também **Área** e **Preço** (ex.: 250.000,00). Os pinos mudam de cor: verde, amarelo e cinza.
+5. **Compartilhar:** na aba **Vendas**, use **Copiar link** para mandar aos corretores (pelo WhatsApp, por exemplo) ou **Imprimir** para colocar o QR no stand. O link é `vendas.html?c=<código do condomínio>`.
+
+O mapa público mostra os lotes coloridos pela situação, a área, o preço (ou "Consulte", se estiver vazio) e o caminho pelas ruas internas até os lotes disponíveis e reservados. Ele nunca mostra as observações dos lotes nem o preço dos vendidos. Quando as vendas acabarem, desligue o modo vendas. A portaria e os entregadores continuam funcionando igual.
 
 ## Como funciona a segurança
 
