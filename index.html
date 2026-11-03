@@ -565,6 +565,7 @@
       var pl = L.polyline(r.coords, { color: '#f5c518', weight: 5, opacity: 0.85, bubblingMouseEvents: false }).addTo(ruasLayer);
       pl.on('click', function (e) {
         if (drawPts) { addVertex([e.latlng.lat, e.latlng.lng]); return; }
+        if (mode === 'portaria' || mode === 'stand') { onMapClick(e); return; }   // portaria/stand costumam ficar em cima da rua
         if (mode !== 'ruas') return;
         L.popup().setLatLng(e.latlng).setContent('<div class="popup">Rua ' + (r.origem === 'osm' ? 'importada do OpenStreetMap' : 'desenhada à mão') +
           '<br><a href="#" data-delrua="' + r.id + '">Excluir esta rua</a></div>').openOn(map);
@@ -711,10 +712,11 @@
     var rt = Rotas.route(ruasGraph, from, to);
     if (!rt) { toast(ruas.length ? 'Sem caminho: as ruas entre ' + (doStand ? 'o stand e este lote' : 'a portaria e esta casa') + ' não estão ligadas.' : 'Nenhuma rua mapeada ainda (aba Ruas).'); return; }
     testLayer = L.layerGroup().addTo(map);
-    L.polyline([from, rt.path[0]], { color: '#1a73e8', weight: 3, dashArray: '4 6' }).addTo(testLayer);
-    L.polyline(rt.path, { color: '#fff', weight: 9, opacity: 0.9 }).addTo(testLayer);
-    L.polyline(rt.path, { color: '#1a73e8', weight: 5 }).addTo(testLayer);
-    L.polyline([rt.path[rt.path.length - 1], to], { color: '#1a73e8', weight: 3, dashArray: '4 6' }).addTo(testLayer);
+    // Linhas só para ver: não podem "engolir" o clique nos pinos que ficam embaixo delas
+    L.polyline([from, rt.path[0]], { color: '#1a73e8', weight: 3, dashArray: '4 6', interactive: false }).addTo(testLayer);
+    L.polyline(rt.path, { color: '#fff', weight: 9, opacity: 0.9, interactive: false }).addTo(testLayer);
+    L.polyline(rt.path, { color: '#1a73e8', weight: 5, interactive: false }).addTo(testLayer);
+    L.polyline([rt.path[rt.path.length - 1], to], { color: '#1a73e8', weight: 3, dashArray: '4 6', interactive: false }).addTo(testLayer);
     map.fitBounds(L.latLngBounds(rt.path.concat([from, to])), { padding: [40, 40] });
     var total = rt.length + rt.startGap + rt.endGap;
     toast('Caminho: ' + Math.round(total) + ' m' + (rt.endGap > 40 ? ' (casa longe da rua mais próxima: confira as ruas)' : ''));
