@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rota Condomínio — Painel</title>
+<title>Rota Lotes — Painel</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   * { box-sizing: border-box; }
@@ -21,6 +21,7 @@
   .row > * { flex: 1; }
   .hint { font-size: 12px; color: #666; margin-top: 6px; line-height: 1.4; }
   .screen { display: none; height: 100%; }
+  [hidden] { display: none !important; }
 
   #login { align-items: center; justify-content: center; background: #f6f6f4; }
   .card { background: #fff; border: 1px solid #e3e3e3; border-radius: 12px; padding: 24px; width: min(360px, 92vw); }
@@ -31,15 +32,48 @@
   #topbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; }
   #topbar strong { font-size: 15px; margin-right: 6px; }
   #condoSel { width: auto; min-width: 200px; }
-  .tabs { display: flex; gap: 6px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .tabgroup { display: flex; align-items: center; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1px solid #ddd; }
+  .tabgroup > span { font-size: 12px; color: #777; }
   .spacer { flex: 1; }
   #views { flex: 1; min-height: 0; position: relative; }
   .view { position: absolute; inset: 0; display: none; }
 
   #vMapa { display: flex; }
   #side { width: 320px; display: flex; flex-direction: column; border-right: 1px solid #ddd; background: #fafafa; }
-  #map { flex: 1; }
+  #mapWrap { position: relative; flex: 1; min-width: 0; min-height: 0; }
+  #map { position: absolute; inset: 0; }
   .sec { padding: 12px 14px; border-bottom: 1px solid #e5e5e5; }
+
+  /* Passo a passo (aba Mapear): o que já foi feito e o que falta */
+  .steps { padding: 10px 10px 12px; }
+  .stitle { display: flex; justify-content: space-between; gap: 8px; margin: 0 4px 6px; font-size: 12px; font-weight: 700; color: #555; }
+  #sNext { color: #b3461f; }
+  #sNext.pronto { color: #0f6e56; }
+  .step { padding: 7px 8px; border: 1px solid transparent; border-radius: 8px; }
+  .step.on { background: #fff; border-color: #0f6e56; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .srow { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .sico { flex: none; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #e4e7e5; color: #555; font-size: 12px; font-weight: 700; }
+  .step.ok .sico { background: #0f6e56; color: #fff; }
+  .step.next .sico { background: #d85a30; color: #fff; }
+  .opt { font-size: 11px; color: #888; }
+  .srow b { white-space: nowrap; }
+  .sstat { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: #777; white-space: nowrap; }
+  .step.ok .sstat { color: #0f6e56; font-weight: 600; }
+  .step.next .sstat { color: #b3461f; font-weight: 700; }
+  .srow button { flex: none; padding: 4px 9px; font-size: 12.5px; }
+  .step.next .srow button { background: #0f6e56; border-color: #0f6e56; color: #fff; }
+  .sdet { display: none; padding: 6px 0 2px 30px; }
+  .step.on .sdet { display: block; }
+  .sdet .hint { margin: 0 0 6px; }
+  .sdet .plano { display: block; margin-top: 6px; font-size: 11.5px; }
+
+  /* Aviso em cima do mapa: o que o clique no mapa vai fazer agora */
+  #banner { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 800; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; max-width: calc(100% - 120px); padding: 8px 12px; border: 2px solid transparent; border-radius: 10px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25); font-size: 14px; line-height: 1.35; text-align: center; }
+  #banner.alert { border-color: #d85a30; }
+  #banner b { color: #0f6e56; }
+  #bannerBtns { display: flex; gap: 6px; }
+  #bannerBtns button { padding: 5px 10px; }
   #list { flex: 1; overflow-y: auto; padding: 6px 8px; }
   .item { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
   .item:hover { background: #eee; }
@@ -103,7 +137,7 @@
 <!-- LOGIN -->
 <div id="login" class="screen">
   <form class="card" id="loginForm">
-    <h1>Rota Condomínio</h1>
+    <h1>Rota Lotes</h1>
     <div class="hint">Painel da equipe e da portaria</div>
     <div class="f"><label for="email">E-mail</label><input id="email" type="email" autocomplete="username" required></div>
     <div class="f"><label for="senha">Senha</label><input id="senha" type="password" autocomplete="current-password" required></div>
@@ -120,14 +154,17 @@
 <!-- APP -->
 <div id="app" class="screen">
   <div id="topbar">
-    <strong>Rota Condomínio</strong>
+    <strong>Rota Lotes</strong>
     <select id="condoSel"></select>
     <button id="btnNewCondo">+ Condomínio</button>
     <div class="tabs">
       <button data-view="vMapa" class="active">Mapear</button>
-      <button data-view="vPortaria">Portaria</button>
-      <button data-view="vTotem">QR do totem</button>
       <button data-view="vVendas">Vendas</button>
+      <div class="tabgroup" title="Para usar depois que as casas estiverem prontas">
+        <span>Entregas:</span>
+        <button data-view="vPortaria">Portaria</button>
+        <button data-view="vTotem">QR do totem</button>
+      </div>
     </div>
     <div class="spacer"></div>
     <button id="btnLogout">Sair</button>
@@ -140,20 +177,33 @@
         <div class="sec">
           <label for="q">Buscar endereço ou bairro</label>
           <div class="row"><input id="q" placeholder="Ex.: Nova Parnamirim, RN" style="flex:3"><button id="btnSearch">Buscar</button></div>
-          <div class="row" style="margin-top:6px"><button id="btnLocate">Minha localização</button><button id="btnLayer">Ver mapa de ruas</button></div>
+          <div class="row" style="margin-top:6px"><button id="btnLocate">Minha localização</button><button id="btnLayer">Ver mapa</button></div>
         </div>
-        <div class="sec">
-          <div class="row"><button id="btnModeLote" class="active">Lotes</button><button id="btnModePortaria">Portaria</button><button id="btnModeStand">Stand</button><button id="btnModeRuas">Ruas</button></div>
-          <div class="hint" id="modeHint">Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.</div>
-          <div id="ruasBox" style="display:none;margin-top:8px">
-            <button id="btnOsm" style="width:100%">Importar ruas do OpenStreetMap</button>
-            <a href="#" id="btnOsmFile" style="display:block;font-size:12px;margin-top:6px">Plano B: importar arquivo .osm exportado do site</a>
-            <input type="file" id="osmFile" accept=".osm,.xml,application/xml,text/xml" style="display:none">
-            <div class="row" style="margin-top:6px">
-              <button id="btnRuaFim" class="primary" disabled>Concluir rua</button>
-              <button id="btnRuaUndo" disabled>Desfazer ponto</button>
-              <button id="btnRuaCancel" disabled>Cancelar</button>
+        <div class="sec steps">
+          <div class="stitle"><span>Passo a passo</span><span id="sNext"></span></div>
+          <div class="step" id="stPortaria">
+            <div class="srow"><span class="sico">1</span><b>Portaria</b><span class="sstat" id="ssPortaria"></span><button id="btnModePortaria">Marcar</button></div>
+            <div class="sdet"><div class="hint">Clique no portão de entrada do condomínio. É dali que saem as rotas.</div></div>
+          </div>
+          <div class="step" id="stRuas">
+            <div class="srow"><span class="sico">2</span><b>Ruas</b><span class="sstat" id="ssRuas"></span><button id="btnModeRuas">Desenhar</button></div>
+            <div class="sdet">
+              <div class="hint">As linhas amarelas por onde a rota passa. Tente importar; desenhe só as que faltarem, pelo meio da rua.</div>
+              <button id="btnOsm" style="width:100%">Importar ruas do OpenStreetMap</button>
+              <a href="#" id="btnOsmFile" class="plano">Plano B: importar arquivo .osm exportado do site</a>
+              <input type="file" id="osmFile" accept=".osm,.xml,application/xml,text/xml" style="display:none">
             </div>
+          </div>
+          <div class="step" id="stLotes">
+            <div class="srow"><span class="sico">3</span><b>Lotes</b><span class="sstat" id="ssLotes"></span><button id="btnModeLote">Cadastrar</button></div>
+            <div class="sdet"><div class="hint">Clique em cima de cada lote e preencha situação, área e preço. Para conferir a rota, clique no pino e em "Testar caminho".</div></div>
+          </div>
+          <div class="step" id="stStand">
+            <div class="srow"><span class="sico">4</span><b>Stand</b><span class="opt">opcional</span><span class="sstat" id="ssStand"></span><button id="btnModeStand">Marcar</button></div>
+            <div class="sdet"><div class="hint">O stand de vendas, de onde saem as visitas. Sem stand, as rotas saem da portaria.</div></div>
+          </div>
+          <div class="step" id="stPublicar">
+            <div class="srow"><span class="sico">5</span><b>Publicar</b><span class="sstat" id="ssPublicar"></span><button id="btnGoVendas">Abrir Vendas</button></div>
           </div>
         </div>
         <div class="count" id="count"></div>
@@ -166,7 +216,18 @@
           <input type="file" id="file" accept=".json,application/json" style="display:none">
         </div>
       </aside>
-      <div id="map"></div>
+      <div id="mapWrap">
+        <div id="map"></div>
+        <div id="banner" role="status">
+          <span id="bannerTxt"></span>
+          <span id="bannerBtns">
+            <button id="btnRuaFim" class="primary" disabled hidden>Concluir rua</button>
+            <button id="btnRuaUndo" disabled hidden>Desfazer ponto</button>
+            <button id="btnRuaCancel" disabled hidden>Cancelar rua</button>
+            <button id="btnModeSair" hidden>Cancelar</button>
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- PORTARIA -->
@@ -417,7 +478,7 @@
     sat.addTo(map); var usingSat = true;
     $('btnLayer').onclick = function () {
       if (usingSat) { map.removeLayer(sat); ruas.addTo(map); this.textContent = 'Ver satélite'; }
-      else { map.removeLayer(ruas); sat.addTo(map); this.textContent = 'Ver mapa de ruas'; }
+      else { map.removeLayer(ruas); sat.addTo(map); this.textContent = 'Ver mapa'; }
       usingSat = !usingSat;
     };
     map.on('click', onMapClick);
@@ -435,19 +496,56 @@
     });
   }
 
+  // O clique no mapa faz uma coisa diferente em cada modo: lote (padrão), portaria, stand ou ruas.
   function setMode(m) {
     mode = m;
     if (m !== 'ruas') cancelDraw();
-    $('btnModeLote').classList.toggle('active', m === 'lote');
-    $('btnModePortaria').classList.toggle('active', m === 'portaria');
-    $('btnModeStand').classList.toggle('active', m === 'stand');
-    $('btnModeRuas').classList.toggle('active', m === 'ruas');
-    $('ruasBox').style.display = m === 'ruas' ? 'block' : 'none';
-    $('modeHint').textContent = m === 'lote' ? 'Clique no telhado/lote para cadastrar. Arraste um pino para ajustar.'
-      : m === 'portaria' ? 'Clique no ponto exato da portaria.'
-      : m === 'stand' ? 'Clique no ponto do stand de vendas. As rotas do mapa de vendas saem dele (sem stand, saem da portaria).'
-      : 'Primeiro importe do OpenStreetMap. Onde faltar rua, clique ponto a ponto pelo meio da rua e depois em "Concluir rua". Comece e termine em cima de outra rua (linha amarela) para ligá-las. Clique numa rua para excluí-la.';
+    clearTest();
+    renderSteps(); renderBanner();
   }
+  // Passo a passo: ✓ no que já foi feito, laranja no próximo passo e borda verde no passo em uso.
+  function renderSteps() {
+    var ok = {
+      Portaria: !!condo && condo.portaria_lat != null,
+      Ruas: !!condo && ruas.length > 0,
+      Lotes: !!condo && lotes.length > 0,
+      Stand: !!condo && condo.stand_lat != null,
+      Publicar: !!condo && !!condo.em_vendas
+    };
+    var txt = {
+      Portaria: ok.Portaria ? 'marcada' : 'falta marcar',
+      Ruas: ok.Ruas ? ruas.length + (ruas.length === 1 ? ' rua' : ' ruas') : 'nenhuma',
+      Lotes: ok.Lotes ? lotes.length + (lotes.length === 1 ? ' lote' : ' lotes') : 'nenhum',
+      Stand: ok.Stand ? 'marcado' : '',
+      Publicar: ok.Publicar ? 'ligado' : 'desligado'
+    };
+    var next = condo ? ['Portaria', 'Ruas', 'Lotes', 'Publicar'].filter(function (k) { return !ok[k]; })[0] : null;
+    var on = { Portaria: 'portaria', Ruas: 'ruas', Lotes: 'lote', Stand: 'stand' };
+    Object.keys(ok).forEach(function (k) {
+      var el = $('st' + k);
+      el.classList.toggle('ok', ok[k]); el.classList.toggle('next', k === next); el.classList.toggle('on', mode === on[k]);
+      $('ss' + k).textContent = (ok[k] ? '✓ ' : '') + txt[k];
+    });
+    $('sNext').textContent = !condo ? '' : next ? 'Próximo: ' + next : 'Tudo pronto ✓';
+    $('sNext').classList.toggle('pronto', !!condo && !next);
+    $('btnModePortaria').textContent = ok.Portaria ? 'Mudar' : 'Marcar';
+    $('btnModeStand').textContent = ok.Stand ? 'Mudar' : 'Marcar';
+  }
+  function renderBanner() {
+    var pts = drawPts ? drawPts.length : 0, desenhando = mode === 'ruas' && pts > 0;
+    $('bannerTxt').innerHTML = !condo ? 'Crie um condomínio para começar: botão <b>+ Condomínio</b>, lá em cima.'
+      : mode === 'portaria' ? '<b>Clique no mapa</b> no portão de entrada para marcar a portaria.'
+      : mode === 'stand' ? '<b>Clique no mapa</b> no stand de vendas para marcá-lo.'
+      : desenhando ? '<b>Desenhando a rua</b> (' + pts + (pts === 1 ? ' ponto' : ' pontos') + '): continue clicando no meio da rua e depois em <b>Concluir rua</b>.'
+      : mode === 'ruas' ? '<b>Clique no mapa</b> no meio da rua, ponto a ponto, para desenhá-la. Para apagar uma rua, clique nela.'
+      : '<b>Clique no mapa</b> em cima de um lote para cadastrar. Clique num pino para ver ou editar.';
+    $('banner').classList.toggle('alert', !!condo && mode !== 'lote');
+    $('btnRuaFim').hidden = $('btnRuaUndo').hidden = $('btnRuaCancel').hidden = !desenhando;
+    $('btnModeSair').hidden = !condo || mode === 'lote' || desenhando;
+    $('btnModeSair').textContent = mode === 'ruas' ? 'Pronto' : 'Cancelar';
+  }
+  $('btnModeSair').onclick = function () { setMode('lote'); };
+  $('btnGoVendas').onclick = function () { setView('vVendas'); };
   $('btnModeLote').onclick = function () { setMode('lote'); };
   $('btnModePortaria').onclick = function () { setMode('portaria'); };
   $('btnModeStand').onclick = function () { setMode('stand'); };
@@ -535,9 +633,8 @@
 
   function renderCount() {
     var n = lotes.length;
-    $('count').textContent = !condo ? 'Nenhum condomínio selecionado' :
-      n + (n === 1 ? ' lote' : ' lotes') + ' · ' + ruas.length + (ruas.length === 1 ? ' rua' : ' ruas') + ' · ' + (condo.portaria_lat != null ? 'portaria marcada' : 'portaria não marcada') +
-      (condo.stand_lat != null ? ' · stand marcado' : '');
+    $('count').textContent = !condo ? 'Nenhum condomínio selecionado' : n ? 'Lotes cadastrados (' + n + ')' : 'Nenhum lote cadastrado ainda';
+    renderSteps(); renderBanner();
   }
   function renderList() {
     var list = $('list'); list.innerHTML = '';
@@ -592,6 +689,7 @@
   function updDrawBtns() {
     var n = drawPts ? drawPts.length : 0;
     $('btnRuaFim').disabled = n < 2; $('btnRuaUndo').disabled = n < 1; $('btnRuaCancel').disabled = n < 1;
+    renderBanner();
   }
   function cancelDraw() {
     if (drawLine) map.removeLayer(drawLine); if (drawDots) map.removeLayer(drawDots);
@@ -904,6 +1002,7 @@
     $('vStand').innerHTML = condo.stand_lat != null
       ? '<b>Stand de vendas marcado.</b> As rotas do mapa de vendas saem dele.'
       : '<b>Stand de vendas não marcado.</b> ' + (condo.portaria_lat != null ? 'As rotas saem da portaria.' : 'Marque o stand ou a portaria para o mapa mostrar rotas.');
+    if (!ruas.length) $('vStand').innerHTML += '<div class="hint">Ainda não há ruas desenhadas: o mapa mostra os lotes, mas sem o caminho até eles (aba Mapear, passo 2).</div>';
     $('btnVStand').textContent = condo.stand_lat != null ? 'Mudar o stand de lugar' : 'Marcar stand no mapa';
     var c = { disponivel: 0, reservado: 0, vendido: 0 }, semPreco = 0;
     lotes.forEach(function (l) { var s = statusDe(l); c[s]++; if (s !== 'vendido' && l.preco == null) semPreco++; });
@@ -924,7 +1023,7 @@
     var r = await db.from('condominios').update({ em_vendas: on }).eq('id', condo.id);
     box.disabled = false;
     if (r.error) { box.checked = !on; toast('Erro: ' + r.error.message); return; }
-    condo.em_vendas = on; renderVendas();
+    condo.em_vendas = on; renderVendas(); renderSteps();
     toast(on ? 'Modo vendas ligado: o link já mostra os lotes' : 'Modo vendas desligado: o link mostra só um aviso');
   };
   $('btnVStand').onclick = function () {
