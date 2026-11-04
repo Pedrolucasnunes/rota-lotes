@@ -36,7 +36,7 @@ Os arquivos principais:
 
 1. Abra o link do site e entre com o e-mail e a senha que você criou.
 2. Clique em **+ Condomínio** e dê um nome.
-3. Na aba **Mapear**, busque o bairro, marque a portaria e cadastre os lotes. Para trazer as casas de teste, use **Importar JSON (versão antiga)** com o arquivo que você exportou da primeira versão.
+3. Na aba **Mapear**, busque o bairro e siga o **Passo a passo** da barra lateral: portaria, ruas e lotes. Para trazer as casas de teste, use **Importar JSON (versão antiga)** com o arquivo que você exportou da primeira versão.
 4. Na aba **QR do totem**, clique em **Imprimir placa**. Esse QR fica fixo na portaria.
 5. Na aba **Portaria**, escolha a casa e clique em **Gerar código**. Escaneie a placa com o celular, digite o código e a rota deve abrir.
 
@@ -46,7 +46,7 @@ Serve para mostrar a corretores e clientes os lotes à venda e o caminho até ca
 
 1. **Banco:** no Supabase, abra **SQL Editor > New query**, cole todo o conteúdo de `supabase/vendas.sql` e clique em **Run**. Rodar de novo não causa problema.
 2. **Ligar o modo vendas:** no painel, escolha o condomínio, abra a aba **Vendas** e marque **Modo vendas (mapa público)**. Desligado, o link mostra só um aviso de mapa indisponível.
-3. **Marcar o stand:** na aba **Mapear**, clique em **Stand** e depois no ponto do stand de vendas. As rotas saem dele; sem stand, saem da portaria. Para conferir, use **Testar do stand** no popup de um lote.
+3. **Marcar o stand:** na aba **Mapear**, no passo **Stand**, clique em **Marcar** e depois no ponto do stand de vendas. As rotas saem dele; sem stand, saem da portaria. Para conferir, use **Testar do stand** no popup de um lote.
 4. **Preencher os lotes:** clique em cada lote, depois em **Editar**, e escolha a **Situação** (disponível, reservado ou vendido). Preencha também **Área** e **Preço** (ex.: 250.000,00). Os pinos mudam de cor: verde, amarelo e cinza.
 5. **Compartilhar:** na aba **Vendas**, use **Copiar link** para mandar aos corretores (pelo WhatsApp, por exemplo) ou **Imprimir** para colocar o QR no stand. O link é `vendas.html?c=<código do condomínio>`.
 
